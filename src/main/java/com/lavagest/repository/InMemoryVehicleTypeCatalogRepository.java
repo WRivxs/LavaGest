@@ -7,8 +7,8 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Implementación en memoria de VehicleTypeCatalogRepository (modo sin base de datos).
- * Precarga datos de demostración.
+ * ImplementaciÃ³n en memoria de VehicleTypeCatalogRepository (modo sin base de datos).
+ * Precarga datos de demostraciÃ³n.
  */
 public class InMemoryVehicleTypeCatalogRepository implements VehicleTypeCatalogRepository {
     private final List<VehicleTypeCatalog> store = new ArrayList<VehicleTypeCatalog>();
@@ -51,6 +51,28 @@ public class InMemoryVehicleTypeCatalogRepository implements VehicleTypeCatalogR
         for (VehicleTypeCatalog v : store) {
             if (v.getId().equals(id)) {
                 v.setActive(false);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public boolean update(Long id, String newName) {
+        for (VehicleTypeCatalog v : store) {
+            if (v.getId().equals(id)) {
+                v.setName(newName.trim());
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public boolean activate(Long id) {
+        for (VehicleTypeCatalog v : store) {
+            if (v.getId().equals(id)) {
+                v.setActive(true);
                 return true;
             }
         }

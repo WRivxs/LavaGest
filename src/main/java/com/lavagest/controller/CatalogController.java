@@ -30,6 +30,18 @@ public class CatalogController {
         return vehicleTypeRepo.findAllActive();
     }
 
+    public List<VehicleTypeCatalog> getAllVehicleTypesAdmin() {
+        return vehicleTypeRepo.findAll();
+    }
+
+    public boolean updateVehicleType(Long id, String newName) {
+        return vehicleTypeRepo.update(id, newName);
+    }
+
+    public boolean activateVehicleType(Long id) {
+        return vehicleTypeRepo.activate(id);
+    }
+
     public boolean deleteVehicleType(Long id) {
         return vehicleTypeRepo.delete(id);
     }
@@ -48,8 +60,20 @@ public class CatalogController {
         return washTypeRepo.findAllActive();
     }
 
+    public List<WashType> getAllWashTypesAdmin() {
+        return washTypeRepo.findAll();
+    }
+
     public List<WashType> getWashTypesByVehicleType(Long vehicleTypeCatalogId) {
         return washTypeRepo.findByVehicleTypeCatalogId(vehicleTypeCatalogId);
+    }
+
+    public boolean updateWashType(Long id, String newName, BigDecimal price, Long vehicleTypeCatalogId) {
+        return washTypeRepo.update(id, newName, price, vehicleTypeCatalogId);
+    }
+
+    public boolean activateWashType(Long id) {
+        return washTypeRepo.activate(id);
     }
 
     public boolean deleteWashType(Long id) {

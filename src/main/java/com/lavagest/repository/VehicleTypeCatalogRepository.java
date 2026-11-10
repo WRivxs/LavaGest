@@ -8,4 +8,6 @@ public interface VehicleTypeCatalogRepository {
     List<VehicleTypeCatalog> findAll();
     List<VehicleTypeCatalog> findAllActive();
     boolean delete(Long id);
+    boolean update(Long id, String newName);
+    boolean activate(Long id);
 }

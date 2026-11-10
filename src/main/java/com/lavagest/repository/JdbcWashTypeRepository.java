@@ -114,6 +114,33 @@ public class JdbcWashTypeRepository implements WashTypeRepository {
         }
     }
 
+    @Override
+    public boolean update(Long id, String newName, java.math.BigDecimal newPrice, Long vehicleTypeCatalogId) {
+        String sql = "UPDATE wash_types SET name = ?, price = ?, vehicle_type_catalog_id = ? WHERE id = ?";
+        try (Connection conn = dbConfig.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, newName.trim());
+            ps.setBigDecimal(2, newPrice);
+            ps.setLong(3, vehicleTypeCatalogId);
+            ps.setLong(4, id);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            throw new RuntimeException("Error actualizando tipo de lavado: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public boolean activate(Long id) {
+        String sql = "UPDATE wash_types SET active = true WHERE id = ?";
+        try (Connection conn = dbConfig.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, id);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            throw new RuntimeException("Error activando tipo de lavado: " + e.getMessage(), e);
+        }
+    }
+
     private WashType mapRow(ResultSet rs) throws SQLException {
         WashType wt = new WashType();
         wt.setId(rs.getLong("id"));

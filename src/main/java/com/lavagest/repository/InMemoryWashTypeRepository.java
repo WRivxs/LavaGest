@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Implementación en memoria de WashTypeRepository (modo sin base de datos).
+ * ImplementaciÃ³n en memoria de WashTypeRepository (modo sin base de datos).
  * Precarga tipos de lavado reales.
  */
 public class InMemoryWashTypeRepository implements WashTypeRepository {
@@ -70,6 +70,34 @@ public class InMemoryWashTypeRepository implements WashTypeRepository {
         for (WashType wt : store) {
             if (wt.getId().equals(id)) {
                 wt.setActive(false);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public boolean update(Long id, String newName, java.math.BigDecimal newPrice, Long vehicleTypeCatalogId) {
+        for (WashType wt : store) {
+            if (wt.getId().equals(id)) {
+                wt.setName(newName.trim());
+                wt.setPrice(newPrice);
+                wt.setVehicleTypeCatalogId(vehicleTypeCatalogId);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean update(Long id, String newName, java.math.BigDecimal newPrice) {
+        return update(id, newName, newPrice, null);
+    }
+
+    @Override
+    public boolean activate(Long id) {
+        for (WashType wt : store) {
+            if (wt.getId().equals(id)) {
+                wt.setActive(true);
                 return true;
             }
         }

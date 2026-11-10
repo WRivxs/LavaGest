@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Implementación JDBC de VehicleTypeCatalogRepository para Supabase PostgreSQL.
+ * ImplementaciÃ³n JDBC de VehicleTypeCatalogRepository para Supabase PostgreSQL.
  */
 public class JdbcVehicleTypeCatalogRepository implements VehicleTypeCatalogRepository {
     private final DatabaseConfig dbConfig;
@@ -34,7 +34,7 @@ public class JdbcVehicleTypeCatalogRepository implements VehicleTypeCatalogRepos
             v.setActive(true);
             return v;
         } catch (SQLException e) {
-            throw new RuntimeException("Error guardando tipo de vehículo: " + e.getMessage(), e);
+            throw new RuntimeException("Error guardando tipo de vehÃ­culo: " + e.getMessage(), e);
         }
     }
 
@@ -50,7 +50,7 @@ public class JdbcVehicleTypeCatalogRepository implements VehicleTypeCatalogRepos
             }
             return result;
         } catch (SQLException e) {
-            throw new RuntimeException("Error listando tipos de vehículo: " + e.getMessage(), e);
+            throw new RuntimeException("Error listando tipos de vehÃ­culo: " + e.getMessage(), e);
         }
     }
 
@@ -66,7 +66,7 @@ public class JdbcVehicleTypeCatalogRepository implements VehicleTypeCatalogRepos
             }
             return result;
         } catch (SQLException e) {
-            throw new RuntimeException("Error listando tipos de vehículo activos: " + e.getMessage(), e);
+            throw new RuntimeException("Error listando tipos de vehÃ­culo activos: " + e.getMessage(), e);
         }
     }
 
@@ -78,7 +78,33 @@ public class JdbcVehicleTypeCatalogRepository implements VehicleTypeCatalogRepos
             ps.setLong(1, id);
             return ps.executeUpdate() > 0;
         } catch (SQLException e) {
-            throw new RuntimeException("Error desactivando tipo de vehículo: " + e.getMessage(), e);
+            throw new RuntimeException("Error desactivando tipo de vehÃ­culo: " + e.getMessage(), e);
+        }
+    }
+
+
+    @Override
+    public boolean update(Long id, String newName) {
+        String sql = "UPDATE vehicle_types_catalog SET name = ? WHERE id = ?";
+        try (Connection conn = dbConfig.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, newName.trim());
+            ps.setLong(2, id);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            throw new RuntimeException("Error actualizando tipo de vehiculo: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public boolean activate(Long id) {
+        String sql = "UPDATE vehicle_types_catalog SET active = true WHERE id = ?";
+        try (Connection conn = dbConfig.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, id);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            throw new RuntimeException("Error activando tipo de vehiculo: " + e.getMessage(), e);
         }
     }
 

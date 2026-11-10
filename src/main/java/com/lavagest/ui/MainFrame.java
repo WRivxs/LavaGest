@@ -65,6 +65,8 @@ import java.awt.GridLayout;
 import java.awt.RenderingHints;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.math.BigDecimal;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
@@ -160,6 +162,8 @@ public class MainFrame extends JFrame {
     private DefaultTableModel washTypeCatalogModel;
     private DefaultTableModel usersTableModel;
     private JComboBox<VehicleTypeCatalog> cmbCatalogVehicles;
+    private List<VehicleTypeCatalog> adminVehiclesList = new ArrayList<VehicleTypeCatalog>();
+    private List<WashType> adminWashTypesList = new ArrayList<WashType>();
 
     // Modal Nuevo Lavado
     private VehicleType selectedVehicleType = VehicleType.CARRO;
@@ -1391,25 +1395,112 @@ public class MainFrame extends JFrame {
         vTable.getColumnModel().getColumn(2).setPreferredWidth(70);
         leftPanel.add(new JScrollPane(vTable), BorderLayout.CENTER);
 
-        JButton btnDeleteVehicle = new JButton("Desactivar Seleccionado");
-        btnDeleteVehicle.setFont(new Font("SansSerif", Font.PLAIN, 11));
-        btnDeleteVehicle.addActionListener(e -> {
+        JPanel vBottom = new JPanel(new BorderLayout(8, 0));
+        vBottom.setOpaque(false);
+        vBottom.setBorder(BorderFactory.createEmptyBorder(8, 0, 0, 0));
+
+        JLabel lblHintV = new JLabel("💡 Doble clic para editar");
+        lblHintV.setFont(new Font("SansSerif", Font.ITALIC, 11));
+        lblHintV.setForeground(MUTED);
+
+        JPanel vActions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+        vActions.setOpaque(false);
+
+        JButton btnEditVehicle = new JButton("✏ Editar");
+        btnEditVehicle.setFont(new Font("SansSerif", Font.BOLD, 11));
+        btnEditVehicle.setBackground(new Color(240, 245, 255));
+        btnEditVehicle.setForeground(PRIMARY);
+        btnEditVehicle.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        JButton btnToggleVehicle = new JButton("⊘ Desactivar");
+        btnToggleVehicle.setFont(new Font("SansSerif", Font.BOLD, 11));
+        btnToggleVehicle.setBackground(new Color(254, 242, 242));
+        btnToggleVehicle.setForeground(new Color(185, 28, 28));
+        btnToggleVehicle.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        vActions.add(btnEditVehicle);
+        vActions.add(btnToggleVehicle);
+
+        vBottom.add(lblHintV, BorderLayout.WEST);
+        vBottom.add(vActions, BorderLayout.EAST);
+        leftPanel.add(vBottom, BorderLayout.SOUTH);
+
+        vTable.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                int row = vTable.getSelectedRow();
+                if (row >= 0 && row < vehicleCatalogModel.getRowCount()) {
+                    String status = (String) vehicleCatalogModel.getValueAt(row, 2);
+                    if ("Activo".equalsIgnoreCase(status)) {
+                        btnToggleVehicle.setText("⊘ Desactivar");
+                        btnToggleVehicle.setBackground(new Color(254, 242, 242));
+                        btnToggleVehicle.setForeground(new Color(185, 28, 28));
+                    } else {
+                        btnToggleVehicle.setText("↻ Activar");
+                        btnToggleVehicle.setBackground(new Color(236, 253, 245));
+                        btnToggleVehicle.setForeground(new Color(22, 101, 52));
+                    }
+                }
+            }
+        });
+
+        btnEditVehicle.addActionListener(e -> {
+            int row = vTable.getSelectedRow();
+            if (row < 0) {
+                JOptionPane.showMessageDialog(this, "Selecciona un tipo de vehículo de la tabla para editar.", "Atención", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            openEditVehicleDialog(row);
+        });
+
+        vTable.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    int row = vTable.getSelectedRow();
+                    if (row >= 0) {
+                        openEditVehicleDialog(row);
+                    }
+                }
+            }
+        });
+
+        btnToggleVehicle.addActionListener(e -> {
             int row = vTable.getSelectedRow();
             if (row < 0) {
                 JOptionPane.showMessageDialog(this, "Selecciona un tipo de vehículo de la tabla.", "Atención", JOptionPane.WARNING_MESSAGE);
                 return;
             }
             Long vId = (Long) vehicleCatalogModel.getValueAt(row, 0);
-            int confirm = JOptionPane.showConfirmDialog(this, "¿Desactivar el tipo de vehículo seleccionado?", "Confirmar", JOptionPane.YES_NO_OPTION);
-            if (confirm == JOptionPane.YES_OPTION) {
-                catalogController.deleteVehicleType(vId);
-                loadCatalogsDataAsync();
+            String vName = (String) vehicleCatalogModel.getValueAt(row, 1);
+            String status = (String) vehicleCatalogModel.getValueAt(row, 2);
+            boolean isActive = "Activo".equalsIgnoreCase(status);
+
+            if (isActive) {
+                int confirm = JOptionPane.showConfirmDialog(
+                        this,
+                        "¿Deseas desactivar el tipo de vehículo '" + vName + "'?\nNo aparecerá en nuevos registros pero mantendrá todo su historial intacto.",
+                        "Confirmar Desactivación",
+                        JOptionPane.YES_NO_OPTION,
+                        JOptionPane.QUESTION_MESSAGE
+                );
+                if (confirm == JOptionPane.YES_OPTION) {
+                    catalogController.deleteVehicleType(vId);
+                    loadCatalogsDataAsync();
+                }
+            } else {
+                int confirm = JOptionPane.showConfirmDialog(
+                        this,
+                        "¿Deseas reactivar el tipo de vehículo '" + vName + "'?",
+                        "Confirmar Activación",
+                        JOptionPane.YES_NO_OPTION,
+                        JOptionPane.QUESTION_MESSAGE
+                );
+                if (confirm == JOptionPane.YES_OPTION) {
+                    catalogController.activateVehicleType(vId);
+                    loadCatalogsDataAsync();
+                }
             }
         });
-        JPanel vBottom = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 8));
-        vBottom.setOpaque(false);
-        vBottom.add(btnDeleteVehicle);
-        leftPanel.add(vBottom, BorderLayout.SOUTH);
 
         btnAddVehicle.addActionListener(e -> {
             String name = txtNewVehicle.getText().trim();
@@ -1495,25 +1586,112 @@ public class MainFrame extends JFrame {
         wTable.getColumnModel().getColumn(4).setPreferredWidth(70);
         rightPanel.add(new JScrollPane(wTable), BorderLayout.CENTER);
 
-        JButton btnDeleteWash = new JButton("Desactivar Seleccionado");
-        btnDeleteWash.setFont(new Font("SansSerif", Font.PLAIN, 11));
-        btnDeleteWash.addActionListener(e -> {
+        JPanel wBottom = new JPanel(new BorderLayout(8, 0));
+        wBottom.setOpaque(false);
+        wBottom.setBorder(BorderFactory.createEmptyBorder(8, 0, 0, 0));
+
+        JLabel lblHintW = new JLabel("💡 Doble clic para editar");
+        lblHintW.setFont(new Font("SansSerif", Font.ITALIC, 11));
+        lblHintW.setForeground(MUTED);
+
+        JPanel wActions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+        wActions.setOpaque(false);
+
+        JButton btnEditWash = new JButton("✏ Editar");
+        btnEditWash.setFont(new Font("SansSerif", Font.BOLD, 11));
+        btnEditWash.setBackground(new Color(240, 245, 255));
+        btnEditWash.setForeground(PRIMARY);
+        btnEditWash.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        JButton btnToggleWash = new JButton("⊘ Desactivar");
+        btnToggleWash.setFont(new Font("SansSerif", Font.BOLD, 11));
+        btnToggleWash.setBackground(new Color(254, 242, 242));
+        btnToggleWash.setForeground(new Color(185, 28, 28));
+        btnToggleWash.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        wActions.add(btnEditWash);
+        wActions.add(btnToggleWash);
+
+        wBottom.add(lblHintW, BorderLayout.WEST);
+        wBottom.add(wActions, BorderLayout.EAST);
+        rightPanel.add(wBottom, BorderLayout.SOUTH);
+
+        wTable.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                int row = wTable.getSelectedRow();
+                if (row >= 0 && row < washTypeCatalogModel.getRowCount()) {
+                    String status = (String) washTypeCatalogModel.getValueAt(row, 4);
+                    if ("Activo".equalsIgnoreCase(status)) {
+                        btnToggleWash.setText("⊘ Desactivar");
+                        btnToggleWash.setBackground(new Color(254, 242, 242));
+                        btnToggleWash.setForeground(new Color(185, 28, 28));
+                    } else {
+                        btnToggleWash.setText("↻ Activar");
+                        btnToggleWash.setBackground(new Color(236, 253, 245));
+                        btnToggleWash.setForeground(new Color(22, 101, 52));
+                    }
+                }
+            }
+        });
+
+        btnEditWash.addActionListener(e -> {
+            int row = wTable.getSelectedRow();
+            if (row < 0) {
+                JOptionPane.showMessageDialog(this, "Selecciona un tipo de lavado de la tabla para editar.", "Atención", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            openEditWashTypeDialog(row);
+        });
+
+        wTable.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    int row = wTable.getSelectedRow();
+                    if (row >= 0) {
+                        openEditWashTypeDialog(row);
+                    }
+                }
+            }
+        });
+
+        btnToggleWash.addActionListener(e -> {
             int row = wTable.getSelectedRow();
             if (row < 0) {
                 JOptionPane.showMessageDialog(this, "Selecciona un tipo de lavado de la tabla.", "Atención", JOptionPane.WARNING_MESSAGE);
                 return;
             }
             Long wId = (Long) washTypeCatalogModel.getValueAt(row, 0);
-            int confirm = JOptionPane.showConfirmDialog(this, "¿Desactivar el tipo de lavado seleccionado?", "Confirmar", JOptionPane.YES_NO_OPTION);
-            if (confirm == JOptionPane.YES_OPTION) {
-                catalogController.deleteWashType(wId);
-                loadCatalogsDataAsync();
+            String wName = (String) washTypeCatalogModel.getValueAt(row, 2);
+            String status = (String) washTypeCatalogModel.getValueAt(row, 4);
+            boolean isActive = "Activo".equalsIgnoreCase(status);
+
+            if (isActive) {
+                int confirm = JOptionPane.showConfirmDialog(
+                        this,
+                        "¿Deseas desactivar el tipo de lavado '" + wName + "'?\nNo aparecerá para nuevos registros pero mantendrá todo su historial intacto.",
+                        "Confirmar Desactivación",
+                        JOptionPane.YES_NO_OPTION,
+                        JOptionPane.QUESTION_MESSAGE
+                );
+                if (confirm == JOptionPane.YES_OPTION) {
+                    catalogController.deleteWashType(wId);
+                    loadCatalogsDataAsync();
+                }
+            } else {
+                int confirm = JOptionPane.showConfirmDialog(
+                        this,
+                        "¿Deseas reactivar el tipo de lavado '" + wName + "'?",
+                        "Confirmar Activación",
+                        JOptionPane.YES_NO_OPTION,
+                        JOptionPane.QUESTION_MESSAGE
+                );
+                if (confirm == JOptionPane.YES_OPTION) {
+                    catalogController.activateWashType(wId);
+                    loadCatalogsDataAsync();
+                }
             }
         });
-        JPanel wBottom = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 8));
-        wBottom.setOpaque(false);
-        wBottom.add(btnDeleteWash);
-        rightPanel.add(wBottom, BorderLayout.SOUTH);
 
         btnAddWash.addActionListener(e -> {
             VehicleTypeCatalog vSel = (VehicleTypeCatalog) cmbCatalogVehicles.getSelectedItem();
@@ -1543,6 +1721,194 @@ public class MainFrame extends JFrame {
         split.add(rightPanel);
         panel.add(split, BorderLayout.CENTER);
         return panel;
+    }
+
+    private void openEditVehicleDialog(int row) {
+        if (row < 0 || row >= vehicleCatalogModel.getRowCount()) {
+            JOptionPane.showMessageDialog(this, "Selecciona un tipo de vehículo de la tabla.", "Atención", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        Long id = (Long) vehicleCatalogModel.getValueAt(row, 0);
+        String currentName = (String) vehicleCatalogModel.getValueAt(row, 1);
+
+        JDialog dialog = new JDialog(this, "Editar Tipo de Vehículo", true);
+        dialog.setLayout(new BorderLayout());
+        dialog.setSize(380, 180);
+        dialog.setLocationRelativeTo(this);
+        dialog.setResizable(false);
+
+        JPanel content = new JPanel();
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setBorder(BorderFactory.createEmptyBorder(16, 20, 16, 20));
+        content.setBackground(SURFACE);
+
+        JLabel lblName = new JLabel("Nombre del Tipo de Vehículo:");
+        lblName.setFont(new Font("SansSerif", Font.BOLD, 12));
+        lblName.setForeground(TEXT);
+
+        JTextField txtName = new JTextField(currentName);
+        txtName.setFont(new Font("SansSerif", Font.PLAIN, 13));
+        txtName.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
+
+        content.add(lblName);
+        content.add(Box.createVerticalStrut(8));
+        content.add(txtName);
+
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 10));
+        btnPanel.setBackground(new Color(248, 249, 250));
+        btnPanel.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, BORDER));
+
+        JButton btnCancel = new JButton("Cancelar");
+        btnCancel.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        btnCancel.addActionListener(e -> dialog.dispose());
+
+        JButton btnSave = createPrimaryButton("Guardar Cambios", 32);
+        btnSave.addActionListener(e -> {
+            String newName = txtName.getText().trim();
+            if (newName.isEmpty()) {
+                JOptionPane.showMessageDialog(dialog, "El nombre no puede estar vacío.", "Validación", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            try {
+                catalogController.updateVehicleType(id, newName);
+                dialog.dispose();
+                loadCatalogsDataAsync();
+                JOptionPane.showMessageDialog(this, "Tipo de vehículo actualizado correctamente.", "Éxito", JOptionPane.INFORMATION_MESSAGE);
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(dialog, "Error al actualizar: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+
+        btnPanel.add(btnCancel);
+        btnPanel.add(btnSave);
+
+        dialog.add(content, BorderLayout.CENTER);
+        dialog.add(btnPanel, BorderLayout.SOUTH);
+        dialog.setVisible(true);
+    }
+
+    private void openEditWashTypeDialog(int row) {
+        if (row < 0 || row >= washTypeCatalogModel.getRowCount()) {
+            JOptionPane.showMessageDialog(this, "Selecciona un tipo de lavado de la tabla.", "Atención", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        Long id = (Long) washTypeCatalogModel.getValueAt(row, 0);
+        WashType currentWt = null;
+        for (WashType wt : adminWashTypesList) {
+            if (wt.getId().equals(id)) {
+                currentWt = wt;
+                break;
+            }
+        }
+        if (currentWt == null) {
+            JOptionPane.showMessageDialog(this, "No se encontró el tipo de lavado.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        final WashType targetWt = currentWt;
+
+        JDialog dialog = new JDialog(this, "Editar Tipo de Lavado", true);
+        dialog.setLayout(new BorderLayout());
+        dialog.setSize(440, 310);
+        dialog.setLocationRelativeTo(this);
+        dialog.setResizable(false);
+
+        JPanel content = new JPanel();
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setBorder(BorderFactory.createEmptyBorder(16, 20, 16, 20));
+        content.setBackground(SURFACE);
+
+        JLabel lblVeh = new JLabel("Tipo de Vehículo:");
+        lblVeh.setFont(new Font("SansSerif", Font.BOLD, 12));
+        lblVeh.setForeground(TEXT);
+
+        JComboBox<VehicleTypeCatalog> cmbVeh = new JComboBox<VehicleTypeCatalog>();
+        VehicleTypeCatalog matchVeh = null;
+        for (VehicleTypeCatalog v : adminVehiclesList) {
+            if (v.isActive() || v.getId().equals(targetWt.getVehicleTypeCatalogId())) {
+                cmbVeh.addItem(v);
+                if (v.getId().equals(targetWt.getVehicleTypeCatalogId())) {
+                    matchVeh = v;
+                }
+            }
+        }
+        if (matchVeh != null) {
+            cmbVeh.setSelectedItem(matchVeh);
+        }
+        cmbVeh.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
+
+        JLabel lblName = new JLabel("Nombre del Tipo de Lavado:");
+        lblName.setFont(new Font("SansSerif", Font.BOLD, 12));
+        lblName.setForeground(TEXT);
+
+        JTextField txtName = new JTextField(targetWt.getName());
+        txtName.setFont(new Font("SansSerif", Font.PLAIN, 13));
+        txtName.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
+
+        JLabel lblPrice = new JLabel("Precio ($):");
+        lblPrice.setFont(new Font("SansSerif", Font.BOLD, 12));
+        lblPrice.setForeground(TEXT);
+
+        JTextField txtPrice = new JTextField(targetWt.getPrice() != null ? targetWt.getPrice().toPlainString() : "");
+        txtPrice.setFont(new Font("SansSerif", Font.PLAIN, 13));
+        txtPrice.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
+
+        content.add(lblVeh);
+        content.add(Box.createVerticalStrut(4));
+        content.add(cmbVeh);
+        content.add(Box.createVerticalStrut(10));
+        content.add(lblName);
+        content.add(Box.createVerticalStrut(4));
+        content.add(txtName);
+        content.add(Box.createVerticalStrut(10));
+        content.add(lblPrice);
+        content.add(Box.createVerticalStrut(4));
+        content.add(txtPrice);
+
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 10));
+        btnPanel.setBackground(new Color(248, 249, 250));
+        btnPanel.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, BORDER));
+
+        JButton btnCancel = new JButton("Cancelar");
+        btnCancel.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        btnCancel.addActionListener(e -> dialog.dispose());
+
+        JButton btnSave = createPrimaryButton("Guardar Cambios", 32);
+        btnSave.addActionListener(e -> {
+            VehicleTypeCatalog selVeh = (VehicleTypeCatalog) cmbVeh.getSelectedItem();
+            String newName = txtName.getText().trim();
+            String priceStr = txtPrice.getText().trim().replace("$", "").replace(".", "").replace(",", ".");
+            if (selVeh == null) {
+                JOptionPane.showMessageDialog(dialog, "Selecciona un tipo de vehículo.", "Validación", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            if (newName.isEmpty()) {
+                JOptionPane.showMessageDialog(dialog, "Ingresa un nombre para el tipo de lavado.", "Validación", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            if (priceStr.isEmpty()) {
+                JOptionPane.showMessageDialog(dialog, "Ingresa el precio del lavado.", "Validación", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            try {
+                BigDecimal newPrice = new BigDecimal(priceStr);
+                catalogController.updateWashType(targetWt.getId(), newName, newPrice, selVeh.getId());
+                dialog.dispose();
+                loadCatalogsDataAsync();
+                JOptionPane.showMessageDialog(this, "Tipo de lavado actualizado correctamente.", "Éxito", JOptionPane.INFORMATION_MESSAGE);
+            } catch (NumberFormatException nfe) {
+                JOptionPane.showMessageDialog(dialog, "El precio ingresado no es válido.", "Validación", JOptionPane.WARNING_MESSAGE);
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(dialog, "Error al actualizar: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+
+        btnPanel.add(btnCancel);
+        btnPanel.add(btnSave);
+
+        dialog.add(content, BorderLayout.CENTER);
+        dialog.add(btnPanel, BorderLayout.SOUTH);
+        dialog.setVisible(true);
     }
 
     // =========================================================================
@@ -1657,28 +2023,33 @@ public class MainFrame extends JFrame {
 
             @Override
             protected Void doInBackground() {
-                vehicles = catalogController.getAllVehicleTypes();
-                washTypes = catalogController.getAllWashTypes();
+                vehicles = catalogController.getAllVehicleTypesAdmin();
+                washTypes = catalogController.getAllWashTypesAdmin();
                 return null;
             }
 
             @Override
             protected void done() {
+                adminVehiclesList = vehicles != null ? vehicles : new ArrayList<VehicleTypeCatalog>();
+                adminWashTypesList = washTypes != null ? washTypes : new ArrayList<WashType>();
+
                 if (vehicleCatalogModel != null) {
                     vehicleCatalogModel.setRowCount(0);
-                    for (VehicleTypeCatalog v : vehicles) {
+                    for (VehicleTypeCatalog v : adminVehiclesList) {
                         vehicleCatalogModel.addRow(new Object[]{v.getId(), v.getName(), v.isActive() ? "Activo" : "Inactivo"});
                     }
                 }
                 if (cmbCatalogVehicles != null) {
                     cmbCatalogVehicles.removeAllItems();
-                    for (VehicleTypeCatalog v : vehicles) {
-                        cmbCatalogVehicles.addItem(v);
+                    for (VehicleTypeCatalog v : adminVehiclesList) {
+                        if (v.isActive()) {
+                            cmbCatalogVehicles.addItem(v);
+                        }
                     }
                 }
                 if (washTypeCatalogModel != null) {
                     washTypeCatalogModel.setRowCount(0);
-                    for (WashType wt : washTypes) {
+                    for (WashType wt : adminWashTypesList) {
                         washTypeCatalogModel.addRow(new Object[]{
                                 wt.getId(),
                                 wt.getVehicleTypeName() != null ? wt.getVehicleTypeName() : "-",
@@ -2257,12 +2628,32 @@ public class MainFrame extends JFrame {
         DefaultTableCellRenderer right = new DefaultTableCellRenderer();
         right.setHorizontalAlignment(SwingConstants.RIGHT);
 
+        DefaultTableCellRenderer statusRenderer = new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+                JLabel c = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+                c.setHorizontalAlignment(SwingConstants.CENTER);
+                c.setFont(new Font("SansSerif", Font.BOLD, 11));
+                if (!isSelected) {
+                    String val = value != null ? value.toString() : "";
+                    if ("Activo".equalsIgnoreCase(val)) {
+                        c.setForeground(new Color(22, 101, 52));
+                    } else if ("Inactivo".equalsIgnoreCase(val)) {
+                        c.setForeground(new Color(185, 28, 28));
+                    }
+                }
+                return c;
+            }
+        };
+
         for (int i = 0; i < table.getColumnCount(); i++) {
             String colName = table.getColumnName(i);
             if (colName.contains("PRECIO") || colName.contains("PAGO") || colName.contains("COBRADO")
                     || colName.contains("GENERADO") || colName.contains("MONTO") || colName.contains("INGRESO") || colName.contains("GANANCIA")) {
                 table.getColumnModel().getColumn(i).setCellRenderer(right);
-            } else if (colName.equals("HORA") || colName.equals("FECHA") || colName.equals("PLACA") || colName.equals("ID") || colName.equals("TIPO") || colName.equals("ESTADO")) {
+            } else if (colName.equals("ESTADO")) {
+                table.getColumnModel().getColumn(i).setCellRenderer(statusRenderer);
+            } else if (colName.equals("HORA") || colName.equals("FECHA") || colName.equals("PLACA") || colName.equals("ID") || colName.equals("TIPO")) {
                 table.getColumnModel().getColumn(i).setCellRenderer(center);
             }
         }
