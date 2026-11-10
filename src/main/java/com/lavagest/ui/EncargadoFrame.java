@@ -238,7 +238,7 @@ public class EncargadoFrame extends JFrame {
 
     private void showNuevoLavadoModal() {
         JDialog dialog = new JDialog(this, "Nuevo Lavado", true);
-        dialog.setSize(480, 500);
+        dialog.setSize(500, 570);
         dialog.setLocationRelativeTo(this);
         dialog.setResizable(false);
 
@@ -279,14 +279,60 @@ public class EncargadoFrame extends JFrame {
         panel.add(txtPrecio);
         panel.add(Box.createVerticalStrut(14));
 
-        // Trabajador
-        addLabel(panel, "Trabajador");
+        // Trabajador (lista de selección con checks)
+        addLabel(panel, "Asignar Operador (Selecciona de la lista)");
         List<Worker> workers = workerController.getActiveWorkers();
-        JComboBox<Worker> cmbWorker = new JComboBox<Worker>();
-        for (Worker w : workers) cmbWorker.addItem(w);
-        cmbWorker.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
-        panel.add(cmbWorker);
-        panel.add(Box.createVerticalStrut(20));
+        final List<JCheckBox> checkList = new java.util.ArrayList<JCheckBox>();
+        final Worker[] selectedWorker = new Worker[1];
+
+        JPanel workerCheckListPanel = new JPanel();
+        workerCheckListPanel.setLayout(new BoxLayout(workerCheckListPanel, BoxLayout.Y_AXIS));
+        workerCheckListPanel.setBackground(Color.WHITE);
+
+        if (workers.isEmpty()) {
+            workerCheckListPanel.add(new JLabel("No hay operarios registrados activos."));
+        } else {
+            for (final Worker w : workers) {
+                final JCheckBox chk = new JCheckBox("☑  " + w.getName() + " — " + w.getBay() + " (" + w.getShift() + ")");
+                chk.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+                chk.setOpaque(true);
+                chk.setBackground(new Color(248, 250, 255));
+                chk.setBorder(BorderFactory.createCompoundBorder(
+                        BorderFactory.createLineBorder(new Color(228, 234, 248), 1),
+                        new EmptyBorder(5, 8, 5, 8)));
+                chk.setFocusPainted(false);
+                chk.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+
+                chk.addActionListener(new ActionListener() {
+                    public void actionPerformed(ActionEvent e) {
+                        for (JCheckBox other : checkList) {
+                            if (other != chk) other.setSelected(false);
+                        }
+                        if (chk.isSelected()) {
+                            selectedWorker[0] = w;
+                        } else {
+                            selectedWorker[0] = null;
+                        }
+                    }
+                });
+
+                checkList.add(chk);
+                workerCheckListPanel.add(chk);
+                workerCheckListPanel.add(Box.createVerticalStrut(3));
+            }
+            if (!checkList.isEmpty()) {
+                checkList.get(0).setSelected(true);
+                selectedWorker[0] = workers.get(0);
+            }
+        }
+
+        JScrollPane workerScroll = new JScrollPane(workerCheckListPanel);
+        workerScroll.setPreferredSize(new Dimension(0, 95));
+        workerScroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 95));
+        workerScroll.setBorder(BorderFactory.createLineBorder(new Color(220, 225, 235), 1));
+        workerScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        panel.add(workerScroll);
+        panel.add(Box.createVerticalStrut(16));
 
         // Botones
         JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
@@ -342,7 +388,7 @@ public class EncargadoFrame extends JFrame {
             public void actionPerformed(ActionEvent e) {
                 String cliente = txtCliente.getText().trim();
                 WashType washType = (WashType) cmbWashType.getSelectedItem();
-                Worker worker = (Worker) cmbWorker.getSelectedItem();
+                Worker worker = selectedWorker[0];
                 VehicleTypeCatalog vehicle = (VehicleTypeCatalog) cmbVehicle.getSelectedItem();
 
                 if (cliente.isEmpty()) {
@@ -354,7 +400,7 @@ public class EncargadoFrame extends JFrame {
                     return;
                 }
                 if (worker == null) {
-                    JOptionPane.showMessageDialog(dialog, "Selecciona un trabajador.", "Campo requerido", JOptionPane.WARNING_MESSAGE);
+                    JOptionPane.showMessageDialog(dialog, "Selecciona un operario en la lista de checks.", "Campo requerido", JOptionPane.WARNING_MESSAGE);
                     return;
                 }
 

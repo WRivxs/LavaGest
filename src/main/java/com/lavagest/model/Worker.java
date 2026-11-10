@@ -44,4 +44,9 @@ public class Worker {
 
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
+
+    @Override
+    public String toString() {
+        return name + (bay != null && !bay.isEmpty() ? " — " + bay : "") + (shift != null && !shift.isEmpty() ? " (" + shift + ")" : "");
+    }
 }
