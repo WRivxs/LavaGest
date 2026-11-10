@@ -8,17 +8,22 @@ import java.math.BigDecimal;
  * La UI llena estos campos y se los pasa al WashController.
  */
 public class CreateWashRequest {
-    private String plate;           // Placa del vehículo (obligatorio)
-    private String vehicleModel;    // Modelo + color (opcional, ej: "Mazda 3 Blanco")
-    private VehicleType vehicleType; // CARRO o MOTO (obligatorio)
-    private Long workerId;          // ID del trabajador asignado (obligatorio)
-    private BigDecimal price;       // Precio cobrado al cliente (obligatorio)
-    private BigDecimal commissionPct; // % comisión (default 40.00 si viene null)
-    private BigDecimal workerPayment; // Si viene null, se calcula automáticamente
+    private String plate;                   // Placa del vehículo
+    private String vehicleModel;            // Modelo + color (opcional)
+    private VehicleType vehicleType;        // Enum legacy CARRO/MOTO (compatibilidad)
+    private Long vehicleTypeCatalogId;      // FK a vehicle_types_catalog (nuevo)
+    private String vehicleTypeName;         // nombre del tipo de vehículo (nuevo)
+    private Long washTypeId;                // FK a wash_types (nuevo)
+    private String washTypeName;            // nombre del tipo de lavado (nuevo)
+    private String clientName;              // nombre del cliente (nuevo)
+    private Long workerId;                  // ID del trabajador asignado
+    private BigDecimal price;               // Precio cobrado
+    private BigDecimal commissionPct;       // % comisión (default 40.00)
+    private BigDecimal workerPayment;       // Si null, se calcula automáticamente
+    private Long createdByUserId;           // FK a app_users (nuevo)
     private String notes;
 
-    public CreateWashRequest() {
-    }
+    public CreateWashRequest() {}
 
     public CreateWashRequest(String plate, String vehicleModel, VehicleType vehicleType,
                              Long workerId, BigDecimal price) {
@@ -27,7 +32,7 @@ public class CreateWashRequest {
         this.vehicleType = vehicleType;
         this.workerId = workerId;
         this.price = price;
-        this.commissionPct = new BigDecimal("40.00"); // Comisión estándar del 40%
+        this.commissionPct = new BigDecimal("40.00");
     }
 
     // ---------- Getters y Setters ----------
@@ -41,6 +46,21 @@ public class CreateWashRequest {
     public VehicleType getVehicleType() { return vehicleType; }
     public void setVehicleType(VehicleType vehicleType) { this.vehicleType = vehicleType; }
 
+    public Long getVehicleTypeCatalogId() { return vehicleTypeCatalogId; }
+    public void setVehicleTypeCatalogId(Long vehicleTypeCatalogId) { this.vehicleTypeCatalogId = vehicleTypeCatalogId; }
+
+    public String getVehicleTypeName() { return vehicleTypeName; }
+    public void setVehicleTypeName(String vehicleTypeName) { this.vehicleTypeName = vehicleTypeName; }
+
+    public Long getWashTypeId() { return washTypeId; }
+    public void setWashTypeId(Long washTypeId) { this.washTypeId = washTypeId; }
+
+    public String getWashTypeName() { return washTypeName; }
+    public void setWashTypeName(String washTypeName) { this.washTypeName = washTypeName; }
+
+    public String getClientName() { return clientName; }
+    public void setClientName(String clientName) { this.clientName = clientName; }
+
     public Long getWorkerId() { return workerId; }
     public void setWorkerId(Long workerId) { this.workerId = workerId; }
 
@@ -52,6 +72,9 @@ public class CreateWashRequest {
 
     public BigDecimal getWorkerPayment() { return workerPayment; }
     public void setWorkerPayment(BigDecimal workerPayment) { this.workerPayment = workerPayment; }
+
+    public Long getCreatedByUserId() { return createdByUserId; }
+    public void setCreatedByUserId(Long createdByUserId) { this.createdByUserId = createdByUserId; }
 
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }

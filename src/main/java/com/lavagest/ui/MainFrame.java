@@ -2,6 +2,8 @@ package com.lavagest.ui;
 
 import com.formdev.flatlaf.FlatLightLaf;
 import com.lavagest.config.AppContainer;
+import com.lavagest.controller.AuthController;
+import com.lavagest.controller.CatalogController;
 import com.lavagest.controller.DashboardController;
 import com.lavagest.controller.PayoutController;
 import com.lavagest.controller.ReportController;
@@ -14,8 +16,12 @@ import com.lavagest.dto.DashboardMetricsDTO.DayTrendDTO;
 import com.lavagest.dto.FinancialReportDTO;
 import com.lavagest.dto.WashTableRowDTO;
 import com.lavagest.dto.WorkerKpiDTO;
+import com.lavagest.model.AppUser;
+import com.lavagest.model.Role;
 import com.lavagest.model.ServiceRate;
 import com.lavagest.model.VehicleType;
+import com.lavagest.model.VehicleTypeCatalog;
+import com.lavagest.model.WashType;
 import com.lavagest.model.Worker;
 import com.lavagest.model.WorkerPayout;
 import com.lavagest.repository.ServiceRateRepository;
@@ -32,6 +38,7 @@ import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JPasswordField;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
@@ -71,6 +78,8 @@ import java.util.Locale;
 import java.util.Set;
 import com.lavagest.service.DashboardService;
 
+import com.lavagest.model.AppUser;
+
 /**
  * Ventana Principal de LavaGest PRO:
  * - Dashboard limpio y espacioso (sin el formulario en el panel central).
@@ -104,6 +113,8 @@ public class MainFrame extends JFrame {
     private final PayoutController payoutController;
     private final ReportController reportController;
     private final ServiceRateRepository serviceRateRepository;
+    private final CatalogController catalogController;
+    private final AuthController authController;
 
     private final CardLayout cardLayout = new CardLayout();
     private final JPanel contentPanel = new JPanel(cardLayout);
@@ -145,6 +156,10 @@ public class MainFrame extends JFrame {
     private DefaultTableModel workersTableModel;
     private DefaultTableModel payoutsTableModel;
     private DefaultTableModel dailyReportsModel;
+    private DefaultTableModel vehicleCatalogModel;
+    private DefaultTableModel washTypeCatalogModel;
+    private DefaultTableModel usersTableModel;
+    private JComboBox<VehicleTypeCatalog> cmbCatalogVehicles;
 
     // Modal Nuevo Lavado
     private VehicleType selectedVehicleType = VehicleType.CARRO;
@@ -154,7 +169,14 @@ public class MainFrame extends JFrame {
     private JLabel previewPaymentLabel;
     private JLabel previewProfitLabel;
 
+    private AppUser currentUser;
+
     public MainFrame() {
+        this(null);
+    }
+
+    public MainFrame(AppUser user) {
+        this.currentUser = user;
         this.container = AppContainer.getInstance();
         this.dashboardController = container.getDashboardController();
         this.washController = container.getWashController();
@@ -162,6 +184,8 @@ public class MainFrame extends JFrame {
         this.payoutController = container.getPayoutController();
         this.reportController = container.getReportController();
         this.serviceRateRepository = container.getServiceRateRepository();
+        this.catalogController = container.getCatalogController();
+        this.authController = container.getAuthController();
 
         initLookAndFeel();
 
@@ -182,6 +206,8 @@ public class MainFrame extends JFrame {
         contentPanel.add(buildHistoryView(), "history");
         contentPanel.add(buildPayoutsView(), "payouts");
         contentPanel.add(buildReportsView(), "reports");
+        contentPanel.add(buildCatalogManagementView(), "catalogs");
+        contentPanel.add(buildUserManagementView(), "users");
         contentPanel.add(buildConfigView(), "config");
 
         showView("dashboard");
@@ -264,10 +290,12 @@ public class MainFrame extends JFrame {
                 "Historial de Lavados",
                 "Liquidación / Nómina",
                 "Reportes Financieros",
+                "Tipos de Lavado & Vehículos",
+                "Encargados y Accesos",
                 "Configuración"
         };
-        String[] navKeys = {"dashboard", "workers", "history", "payouts", "reports", "config"};
-        String[] navIcons = {"▣", "▦", "☰", "◷", "▤", "⚙"};
+        String[] navKeys = {"dashboard", "workers", "history", "payouts", "reports", "catalogs", "users", "config"};
+        String[] navIcons = {"▣", "▦", "☰", "◷", "▤", "🏷", "👥", "⚙"};
 
         for (int i = 0; i < navLabels.length; i++) {
             final String key = navKeys[i];
@@ -353,6 +381,27 @@ public class MainFrame extends JFrame {
         clockLabel.setForeground(MUTED);
         clockLabel.setBorder(BorderFactory.createEmptyBorder(0, 6, 0, 6));
         right.add(clockLabel);
+
+        JLabel userBadge = new JLabel("👤 " + (currentUser != null ? currentUser.getUsername() : "admin") + " (ADMIN)");
+        userBadge.setFont(new Font("SansSerif", Font.BOLD, 11));
+        userBadge.setForeground(PRIMARY);
+        userBadge.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 4));
+        right.add(userBadge);
+
+        JButton btnLogout = new JButton("Salir");
+        btnLogout.setFont(new Font("SansSerif", Font.BOLD, 11));
+        btnLogout.setBackground(new Color(254, 237, 237));
+        btnLogout.setForeground(new Color(192, 40, 40));
+        btnLogout.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(248, 180, 180), 1),
+                BorderFactory.createEmptyBorder(4, 8, 4, 8)));
+        btnLogout.setFocusPainted(false);
+        btnLogout.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btnLogout.addActionListener(e -> {
+            dispose();
+            SwingUtilities.invokeLater(() -> new LoginFrame().setVisible(true));
+        });
+        right.add(btnLogout);
 
         topBar.add(left, BorderLayout.WEST);
         topBar.add(right, BorderLayout.EAST);
@@ -682,47 +731,41 @@ public class MainFrame extends JFrame {
     }
 
     // =========================================================================
-    // MODAL DE REGISTRO DE LAVADO (CON LISTA DE SELECCIÓN CON CHECKS)
+    // MODAL DE REGISTRO DE LAVADO (CON CATÁLOGOS DINÁMICOS Y LISTA DE CHECKS)
     // =========================================================================
     private void showNewWashModal() {
-        JDialog dialog = new JDialog(this, "Registrar Nuevo Lavado [Modo Dispatcher]", true);
-        dialog.setSize(480, 560);
+        JDialog dialog = new JDialog(this, "Registrar Nuevo Lavado [Modo Despachador]", true);
+        dialog.setSize(500, 620);
         dialog.setLocationRelativeTo(this);
         dialog.setLayout(new BorderLayout());
 
         JPanel form = new JPanel();
         form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
         form.setBackground(SURFACE);
-        form.setBorder(BorderFactory.createEmptyBorder(18, 20, 18, 20));
+        form.setBorder(BorderFactory.createEmptyBorder(18, 22, 18, 22));
 
-        // 1. Tipo Vehículo (Carro / Moto)
-        JLabel step1 = new JLabel("1. SELECCIONA TIPO DE VEHÍCULO");
-        step1.setFont(new Font("SansSerif", Font.BOLD, 11));
-        step1.setForeground(MUTED_LIGHT);
-        form.add(step1);
-        form.add(Box.createVerticalStrut(6));
+        // 1. Cliente y Placa
+        JPanel clientPlateRow = new JPanel(new GridLayout(1, 2, 12, 0));
+        clientPlateRow.setOpaque(false);
+        clientPlateRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 46));
 
-        JPanel vehicleButtonsRow = new JPanel(new GridLayout(1, 2, 10, 0));
-        vehicleButtonsRow.setOpaque(false);
-        vehicleButtonsRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
-
-        btnSelectCarro = createVehicleToggle("🚗 Carro", "General", "$30.000", selectedVehicleType == VehicleType.CARRO);
-        btnSelectMoto = createVehicleToggle("🏍 Moto", "Detallado", "$20.000", selectedVehicleType == VehicleType.MOTO);
-
-        vehicleButtonsRow.add(btnSelectCarro);
-        vehicleButtonsRow.add(btnSelectMoto);
-        form.add(vehicleButtonsRow);
-        form.add(Box.createVerticalStrut(12));
-
-        // 2. Placa y Modelo
-        JPanel plateModelRow = new JPanel(new GridLayout(1, 2, 10, 0));
-        plateModelRow.setOpaque(false);
-        plateModelRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 46));
+        JPanel clientCol = new JPanel();
+        clientCol.setOpaque(false);
+        clientCol.setLayout(new BoxLayout(clientCol, BoxLayout.Y_AXIS));
+        JLabel clientLabel = new JLabel("1. CLIENTE *");
+        clientLabel.setFont(new Font("SansSerif", Font.BOLD, 10));
+        clientLabel.setForeground(MUTED_LIGHT);
+        JTextField txtClient = new JTextField();
+        txtClient.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        txtClient.putClientProperty("JTextField.placeholderText", "Nombre del cliente");
+        clientCol.add(clientLabel);
+        clientCol.add(Box.createVerticalStrut(2));
+        clientCol.add(txtClient);
 
         JPanel plateCol = new JPanel();
         plateCol.setOpaque(false);
         plateCol.setLayout(new BoxLayout(plateCol, BoxLayout.Y_AXIS));
-        JLabel plateLabel = new JLabel("2. PLACA DEL VEHÍCULO *");
+        JLabel plateLabel = new JLabel("PLACA *");
         plateLabel.setFont(new Font("SansSerif", Font.BOLD, 10));
         plateLabel.setForeground(MUTED_LIGHT);
         JTextField modalPlate = new JTextField();
@@ -738,32 +781,56 @@ public class MainFrame extends JFrame {
         plateCol.add(Box.createVerticalStrut(2));
         plateCol.add(modalPlate);
 
-        JPanel modelCol = new JPanel();
-        modelCol.setOpaque(false);
-        modelCol.setLayout(new BoxLayout(modelCol, BoxLayout.Y_AXIS));
-        JLabel modelLabel = new JLabel("MODELO (OPCIONAL)");
-        modelLabel.setFont(new Font("SansSerif", Font.BOLD, 10));
-        modelLabel.setForeground(MUTED_LIGHT);
-        JTextField modalModel = new JTextField();
-        modalModel.setFont(new Font("SansSerif", Font.PLAIN, 12));
-        modalModel.putClientProperty("JTextField.placeholderText", "Ej: Mazda 3");
-        modelCol.add(modelLabel);
-        modelCol.add(Box.createVerticalStrut(2));
-        modelCol.add(modalModel);
-
-        plateModelRow.add(plateCol);
-        plateModelRow.add(modelCol);
-        form.add(plateModelRow);
+        clientPlateRow.add(clientCol);
+        clientPlateRow.add(plateCol);
+        form.add(clientPlateRow);
         form.add(Box.createVerticalStrut(12));
 
-        // 3. SELECCIÓN DE TRABAJADOR MEDIANTE LISTA CON CHECKS
+        // 2. Selección de Vehículo y Tipo de Lavado filtrado dinámicamente
+        JLabel step2 = new JLabel("2. VEHÍCULO Y TIPO DE LAVADO ASIGNADO *");
+        step2.setFont(new Font("SansSerif", Font.BOLD, 10));
+        step2.setForeground(MUTED_LIGHT);
+        form.add(step2);
+        form.add(Box.createVerticalStrut(4));
+
+        JPanel catRow = new JPanel(new GridLayout(1, 2, 12, 0));
+        catRow.setOpaque(false);
+        catRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 46));
+
+        JPanel vCol = new JPanel();
+        vCol.setOpaque(false);
+        vCol.setLayout(new BoxLayout(vCol, BoxLayout.Y_AXIS));
+        JLabel vLbl = new JLabel("Tipo de Vehículo");
+        vLbl.setFont(new Font("SansSerif", Font.PLAIN, 10));
+        JComboBox<VehicleTypeCatalog> cmbVehicles = new JComboBox<VehicleTypeCatalog>();
+        List<VehicleTypeCatalog> vList = catalogController.getAllVehicleTypes();
+        for (VehicleTypeCatalog v : vList) cmbVehicles.addItem(v);
+        vCol.add(vLbl);
+        vCol.add(Box.createVerticalStrut(2));
+        vCol.add(cmbVehicles);
+
+        JPanel wCol = new JPanel();
+        wCol.setOpaque(false);
+        wCol.setLayout(new BoxLayout(wCol, BoxLayout.Y_AXIS));
+        JLabel wLbl = new JLabel("Tipo de Lavado");
+        wLbl.setFont(new Font("SansSerif", Font.PLAIN, 10));
+        JComboBox<WashType> cmbWashes = new JComboBox<WashType>();
+        wCol.add(wLbl);
+        wCol.add(Box.createVerticalStrut(2));
+        wCol.add(cmbWashes);
+
+        catRow.add(vCol);
+        catRow.add(wCol);
+        form.add(catRow);
+        form.add(Box.createVerticalStrut(12));
+
+        // 3. ASIGNAR OPERADOR MEDIANTE LISTA CON CHECKS
         JLabel step3 = new JLabel("3. ASIGNAR OPERADOR (SELECCIONA DE LA LISTA) *");
         step3.setFont(new Font("SansSerif", Font.BOLD, 10));
         step3.setForeground(MUTED_LIGHT);
         form.add(step3);
-        form.add(Box.createVerticalStrut(6));
+        form.add(Box.createVerticalStrut(4));
 
-        // Panel de lista de selección con checks
         JPanel workerCheckListPanel = new JPanel();
         workerCheckListPanel.setLayout(new BoxLayout(workerCheckListPanel, BoxLayout.Y_AXIS));
         workerCheckListPanel.setOpaque(false);
@@ -782,13 +849,12 @@ public class MainFrame extends JFrame {
                 chk.setBackground(new Color(248, 250, 255));
                 chk.setBorder(BorderFactory.createCompoundBorder(
                         BorderFactory.createLineBorder(new Color(228, 234, 248), 1),
-                        BorderFactory.createEmptyBorder(6, 8, 6, 8)));
+                        BorderFactory.createEmptyBorder(5, 8, 5, 8)));
                 chk.setFocusPainted(false);
                 chk.setCursor(new Cursor(Cursor.HAND_CURSOR));
 
                 final Long wId = w.getId();
                 chk.addActionListener(e -> {
-                    // Exclusividad: solo un check seleccionado a la vez
                     for (JCheckBox other : checkList) {
                         if (other != chk) other.setSelected(false);
                     }
@@ -801,9 +867,8 @@ public class MainFrame extends JFrame {
 
                 checkList.add(chk);
                 workerCheckListPanel.add(chk);
-                workerCheckListPanel.add(Box.createVerticalStrut(4));
+                workerCheckListPanel.add(Box.createVerticalStrut(3));
             }
-            // Seleccionar el primero por defecto
             if (!checkList.isEmpty()) {
                 checkList.get(0).setSelected(true);
                 modalSelectedWorkerId[0] = activeWorkers.get(0).getId();
@@ -811,32 +876,55 @@ public class MainFrame extends JFrame {
         }
 
         JScrollPane workerScroll = new JScrollPane(workerCheckListPanel);
-        workerScroll.setPreferredSize(new Dimension(0, 110));
-        workerScroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 110));
+        workerScroll.setPreferredSize(new Dimension(0, 95));
+        workerScroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 95));
         workerScroll.setBorder(BorderFactory.createLineBorder(BORDER, 1));
         workerScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         form.add(workerScroll);
-        form.add(Box.createVerticalStrut(12));
+        form.add(Box.createVerticalStrut(10));
 
         // 4. Preview Financiero
         JPanel previewBox = buildTicketPreviewBox();
         form.add(previewBox);
-        form.add(Box.createVerticalStrut(14));
+        form.add(Box.createVerticalStrut(10));
 
-        btnSelectCarro.addActionListener(e -> {
-            selectedVehicleType = VehicleType.CARRO;
-            updateVehicleSelectionUI();
-            updateFormPreview();
+        // Filtro reactivo tipo de vehiculo -> tipos de lavado
+        final BigDecimal[] currentPrice = new BigDecimal[]{BigDecimal.ZERO};
+        Runnable updateWashTypes = () -> {
+            VehicleTypeCatalog selV = (VehicleTypeCatalog) cmbVehicles.getSelectedItem();
+            cmbWashes.removeAllItems();
+            if (selV != null) {
+                List<WashType> types = catalogController.getWashTypesByVehicleType(selV.getId());
+                for (WashType wt : types) cmbWashes.addItem(wt);
+            }
+            WashType selW = (WashType) cmbWashes.getSelectedItem();
+            if (selW != null) {
+                currentPrice[0] = selW.getPrice();
+            } else {
+                currentPrice[0] = BigDecimal.ZERO;
+            }
+            BigDecimal p = currentPrice[0];
+            BigDecimal wp = p.multiply(new BigDecimal("40.00")).divide(new BigDecimal("100"), 2, java.math.RoundingMode.HALF_UP);
+            BigDecimal profit = p.subtract(wp);
+            previewPriceLabel.setText(CURRENCY_FMT.format(p));
+            previewPaymentLabel.setText(CURRENCY_FMT.format(wp));
+            previewProfitLabel.setText(CURRENCY_FMT.format(profit));
+        };
+
+        cmbVehicles.addActionListener(e -> updateWashTypes.run());
+        cmbWashes.addActionListener(e -> {
+            WashType selW = (WashType) cmbWashes.getSelectedItem();
+            if (selW != null) {
+                currentPrice[0] = selW.getPrice();
+                BigDecimal p = currentPrice[0];
+                BigDecimal wp = p.multiply(new BigDecimal("40.00")).divide(new BigDecimal("100"), 2, java.math.RoundingMode.HALF_UP);
+                BigDecimal profit = p.subtract(wp);
+                previewPriceLabel.setText(CURRENCY_FMT.format(p));
+                previewPaymentLabel.setText(CURRENCY_FMT.format(wp));
+                previewProfitLabel.setText(CURRENCY_FMT.format(profit));
+            }
         });
-
-        btnSelectMoto.addActionListener(e -> {
-            selectedVehicleType = VehicleType.MOTO;
-            updateVehicleSelectionUI();
-            updateFormPreview();
-        });
-
-        updateVehicleSelectionUI();
-        updateFormPreview();
+        updateWashTypes.run();
 
         // 5. Botones Cancelar / Guardar
         JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 12));
@@ -848,9 +936,17 @@ public class MainFrame extends JFrame {
         JButton btnSave = createPrimaryButton("✔ Guardar y Registrar Lavado", 36);
         btnSave.addActionListener(e -> {
             String plate = modalPlate.getText().trim();
+            String client = txtClient.getText().trim();
+            VehicleTypeCatalog selV = (VehicleTypeCatalog) cmbVehicles.getSelectedItem();
+            WashType selW = (WashType) cmbWashes.getSelectedItem();
+
             if (plate.isEmpty()) {
                 JOptionPane.showMessageDialog(dialog, "Por favor ingresa la placa del vehículo.", "Validación", JOptionPane.WARNING_MESSAGE);
                 modalPlate.requestFocus();
+                return;
+            }
+            if (selV == null || selW == null) {
+                JOptionPane.showMessageDialog(dialog, "Selecciona un tipo de vehículo y tipo de lavado.", "Validación", JOptionPane.WARNING_MESSAGE);
                 return;
             }
             if (modalSelectedWorkerId[0] == null) {
@@ -861,18 +957,20 @@ public class MainFrame extends JFrame {
             btnSave.setEnabled(false);
             btnSave.setText("⏳ Guardando...");
 
-            ServiceRate rate = serviceRateRepository.findByVehicleType(selectedVehicleType);
-            BigDecimal price = rate != null ? rate.getDefaultPrice() : new BigDecimal(selectedVehicleType == VehicleType.CARRO ? "30000" : "20000");
-            BigDecimal commissionPct = rate != null ? rate.getCommissionPct() : new BigDecimal("40.00");
-
-            CreateWashRequest request = new CreateWashRequest(
-                    plate,
-                    modalModel.getText().trim(),
-                    selectedVehicleType,
-                    modalSelectedWorkerId[0],
-                    price
-            );
-            request.setCommissionPct(commissionPct);
+            CreateWashRequest request = new CreateWashRequest();
+            request.setPlate(plate);
+            request.setClientName(client.isEmpty() ? plate : client);
+            request.setVehicleModel(selV.getName());
+            request.setVehicleTypeCatalogId(selV.getId());
+            request.setVehicleTypeName(selV.getName());
+            request.setWashTypeId(selW.getId());
+            request.setWashTypeName(selW.getName());
+            request.setWorkerId(modalSelectedWorkerId[0]);
+            request.setPrice(selW.getPrice());
+            request.setCommissionPct(new BigDecimal("40.00"));
+            if (currentUser != null) {
+                request.setCreatedByUserId(currentUser.getId());
+            }
 
             SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
                 @Override
@@ -1226,6 +1324,380 @@ public class MainFrame extends JFrame {
     }
 
     // =========================================================================
+    // GESTIÓN DE CATÁLOGOS (VEHÍCULOS Y TIPOS DE LAVADO)
+    // =========================================================================
+    private JPanel buildCatalogManagementView() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(BG);
+        panel.setBorder(BorderFactory.createEmptyBorder(16, 20, 20, 20));
+
+        JPanel topHeader = new JPanel(new BorderLayout());
+        topHeader.setOpaque(false);
+        topHeader.setBorder(BorderFactory.createEmptyBorder(0, 0, 14, 0));
+
+        JLabel title = new JLabel("Catálogos Operativos: Tipos de Vehículo y Lavados");
+        title.setFont(new Font("SansSerif", Font.BOLD, 18));
+        title.setForeground(TEXT);
+
+        JButton btnRefresh = new JButton("↻ Actualizar");
+        btnRefresh.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        btnRefresh.addActionListener(e -> loadCatalogsDataAsync());
+
+        topHeader.add(title, BorderLayout.WEST);
+        topHeader.add(btnRefresh, BorderLayout.EAST);
+        panel.add(topHeader, BorderLayout.NORTH);
+
+        JPanel split = new JPanel(new GridLayout(1, 2, 16, 0));
+        split.setOpaque(false);
+
+        // --- Panel Izquierdo: Tipos de Vehículo ---
+        JPanel leftPanel = new JPanel(new BorderLayout());
+        leftPanel.setBackground(SURFACE);
+        leftPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(BORDER, 1),
+                BorderFactory.createEmptyBorder(12, 12, 12, 12)));
+
+        JLabel vTitle = new JLabel("1. TIPOS DE VEHÍCULO");
+        vTitle.setFont(new Font("SansSerif", Font.BOLD, 13));
+        vTitle.setForeground(PRIMARY);
+
+        JPanel vForm = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 8));
+        vForm.setOpaque(false);
+        JTextField txtNewVehicle = new JTextField(12);
+        txtNewVehicle.putClientProperty("JTextField.placeholderText", "Ej: Campero, Moto");
+        JButton btnAddVehicle = createPrimaryButton("＋ Agregar", 30);
+        vForm.add(new JLabel("Nuevo:"));
+        vForm.add(txtNewVehicle);
+        vForm.add(btnAddVehicle);
+
+        JPanel vTop = new JPanel();
+        vTop.setOpaque(false);
+        vTop.setLayout(new BoxLayout(vTop, BoxLayout.Y_AXIS));
+        vTop.add(vTitle);
+        vTop.add(vForm);
+        leftPanel.add(vTop, BorderLayout.NORTH);
+
+        String[] vCols = {"ID", "NOMBRE", "ESTADO"};
+        vehicleCatalogModel = new DefaultTableModel(vCols, 0) {
+            @Override
+            public boolean isCellEditable(int r, int c) { return false; }
+        };
+        JTable vTable = createStyledTable(vehicleCatalogModel);
+        vTable.getColumnModel().getColumn(0).setPreferredWidth(40);
+        vTable.getColumnModel().getColumn(1).setPreferredWidth(160);
+        vTable.getColumnModel().getColumn(2).setPreferredWidth(70);
+        leftPanel.add(new JScrollPane(vTable), BorderLayout.CENTER);
+
+        JButton btnDeleteVehicle = new JButton("Desactivar Seleccionado");
+        btnDeleteVehicle.setFont(new Font("SansSerif", Font.PLAIN, 11));
+        btnDeleteVehicle.addActionListener(e -> {
+            int row = vTable.getSelectedRow();
+            if (row < 0) {
+                JOptionPane.showMessageDialog(this, "Selecciona un tipo de vehículo de la tabla.", "Atención", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            Long vId = (Long) vehicleCatalogModel.getValueAt(row, 0);
+            int confirm = JOptionPane.showConfirmDialog(this, "¿Desactivar el tipo de vehículo seleccionado?", "Confirmar", JOptionPane.YES_NO_OPTION);
+            if (confirm == JOptionPane.YES_OPTION) {
+                catalogController.deleteVehicleType(vId);
+                loadCatalogsDataAsync();
+            }
+        });
+        JPanel vBottom = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 8));
+        vBottom.setOpaque(false);
+        vBottom.add(btnDeleteVehicle);
+        leftPanel.add(vBottom, BorderLayout.SOUTH);
+
+        btnAddVehicle.addActionListener(e -> {
+            String name = txtNewVehicle.getText().trim();
+            if (name.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Ingresa un nombre para el tipo de vehículo.", "Validación", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            try {
+                catalogController.createVehicleType(name);
+                txtNewVehicle.setText("");
+                loadCatalogsDataAsync();
+                JOptionPane.showMessageDialog(this, "Tipo de vehículo creado con éxito.", "Éxito", JOptionPane.INFORMATION_MESSAGE);
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Error al crear: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+
+        // --- Panel Derecho: Tipos de Lavado ---
+        JPanel rightPanel = new JPanel(new BorderLayout());
+        rightPanel.setBackground(SURFACE);
+        rightPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(BORDER, 1),
+                BorderFactory.createEmptyBorder(12, 12, 12, 12)));
+
+        JLabel wTitle = new JLabel("2. TIPOS DE LAVADO & PRECIOS ASIGNADOS");
+        wTitle.setFont(new Font("SansSerif", Font.BOLD, 13));
+        wTitle.setForeground(SECONDARY);
+
+        JPanel wForm = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 6));
+        wForm.setOpaque(false);
+
+        cmbCatalogVehicles = new JComboBox<VehicleTypeCatalog>();
+        JTextField txtWashName = new JTextField(10);
+        txtWashName.putClientProperty("JTextField.placeholderText", "Ej: Lavado con motor");
+        JTextField txtWashPrice = new JTextField(6);
+        txtWashPrice.putClientProperty("JTextField.placeholderText", "Precio $");
+        JButton btnAddWash = createPrimaryButton("＋ Crear Lavado", 30);
+
+        wForm.add(new JLabel("Vehículo:"));
+        wForm.add(cmbCatalogVehicles);
+        wForm.add(new JLabel("Nombre:"));
+        wForm.add(txtWashName);
+        wForm.add(new JLabel("Precio:"));
+        wForm.add(txtWashPrice);
+        wForm.add(btnAddWash);
+
+        JPanel wTop = new JPanel();
+        wTop.setOpaque(false);
+        wTop.setLayout(new BoxLayout(wTop, BoxLayout.Y_AXIS));
+        wTop.add(wTitle);
+        wTop.add(wForm);
+        rightPanel.add(wTop, BorderLayout.NORTH);
+
+        String[] wCols = {"ID", "VEHÍCULO", "TIPO DE LAVADO", "PRECIO", "ESTADO"};
+        washTypeCatalogModel = new DefaultTableModel(wCols, 0) {
+            @Override
+            public boolean isCellEditable(int r, int c) { return false; }
+        };
+        JTable wTable = createStyledTable(washTypeCatalogModel);
+        wTable.getColumnModel().getColumn(0).setPreferredWidth(35);
+        wTable.getColumnModel().getColumn(1).setPreferredWidth(90);
+        wTable.getColumnModel().getColumn(2).setPreferredWidth(140);
+        wTable.getColumnModel().getColumn(3).setPreferredWidth(80);
+        wTable.getColumnModel().getColumn(4).setPreferredWidth(60);
+        rightPanel.add(new JScrollPane(wTable), BorderLayout.CENTER);
+
+        JButton btnDeleteWash = new JButton("Desactivar Seleccionado");
+        btnDeleteWash.setFont(new Font("SansSerif", Font.PLAIN, 11));
+        btnDeleteWash.addActionListener(e -> {
+            int row = wTable.getSelectedRow();
+            if (row < 0) {
+                JOptionPane.showMessageDialog(this, "Selecciona un tipo de lavado de la tabla.", "Atención", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            Long wId = (Long) washTypeCatalogModel.getValueAt(row, 0);
+            int confirm = JOptionPane.showConfirmDialog(this, "¿Desactivar el tipo de lavado seleccionado?", "Confirmar", JOptionPane.YES_NO_OPTION);
+            if (confirm == JOptionPane.YES_OPTION) {
+                catalogController.deleteWashType(wId);
+                loadCatalogsDataAsync();
+            }
+        });
+        JPanel wBottom = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 8));
+        wBottom.setOpaque(false);
+        wBottom.add(btnDeleteWash);
+        rightPanel.add(wBottom, BorderLayout.SOUTH);
+
+        btnAddWash.addActionListener(e -> {
+            VehicleTypeCatalog vSel = (VehicleTypeCatalog) cmbCatalogVehicles.getSelectedItem();
+            String name = txtWashName.getText().trim();
+            String pStr = txtWashPrice.getText().trim();
+            if (vSel == null) {
+                JOptionPane.showMessageDialog(this, "Primero crea y selecciona un tipo de vehículo.", "Validación", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            if (name.isEmpty() || pStr.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Ingresa el nombre y precio del tipo de lavado.", "Validación", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            try {
+                BigDecimal price = new BigDecimal(pStr);
+                catalogController.createWashType(name, price, vSel.getId());
+                txtWashName.setText("");
+                txtWashPrice.setText("");
+                loadCatalogsDataAsync();
+                JOptionPane.showMessageDialog(this, "Tipo de lavado creado exitosamente.", "Éxito", JOptionPane.INFORMATION_MESSAGE);
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Precio inválido o error: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+
+        split.add(leftPanel);
+        split.add(rightPanel);
+        panel.add(split, BorderLayout.CENTER);
+        return panel;
+    }
+
+    // =========================================================================
+    // GESTIÓN DE USUARIOS Y ENCARGADOS
+    // =========================================================================
+    private JPanel buildUserManagementView() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(BG);
+        panel.setBorder(BorderFactory.createEmptyBorder(16, 20, 20, 20));
+
+        JPanel header = new JPanel(new BorderLayout());
+        header.setOpaque(false);
+        header.setBorder(BorderFactory.createEmptyBorder(0, 0, 12, 0));
+
+        JLabel title = new JLabel("Control de Acceso: Usuarios y Encargados");
+        title.setFont(new Font("SansSerif", Font.BOLD, 18));
+        title.setForeground(TEXT);
+
+        JButton btnRefresh = new JButton("↻ Actualizar");
+        btnRefresh.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        btnRefresh.addActionListener(e -> loadUsersDataAsync());
+
+        header.add(title, BorderLayout.WEST);
+        header.add(btnRefresh, BorderLayout.EAST);
+        panel.add(header, BorderLayout.NORTH);
+
+        // Formulario de creación arriba
+        JPanel formCard = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
+        formCard.setBackground(SURFACE);
+        formCard.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(BORDER, 1),
+                BorderFactory.createEmptyBorder(8, 12, 8, 12)));
+
+        JTextField txtNewUsername = new JTextField(12);
+        txtNewUsername.putClientProperty("JTextField.placeholderText", "Nombre de usuario");
+        JPasswordField txtNewPassword = new JPasswordField(10);
+        txtNewPassword.putClientProperty("JTextField.placeholderText", "Contraseña");
+        JComboBox<Role> cmbRole = new JComboBox<Role>(new Role[]{Role.ENCARGADO, Role.ADMIN});
+        JButton btnCreateUser = createPrimaryButton("＋ Crear Cuenta", 32);
+
+        formCard.add(new JLabel("Usuario:"));
+        formCard.add(txtNewUsername);
+        formCard.add(new JLabel("Contraseña:"));
+        formCard.add(txtNewPassword);
+        formCard.add(new JLabel("Rol:"));
+        formCard.add(cmbRole);
+        formCard.add(btnCreateUser);
+
+        btnCreateUser.addActionListener(e -> {
+            String user = txtNewUsername.getText().trim();
+            String pass = new String(txtNewPassword.getPassword()).trim();
+            Role role = (Role) cmbRole.getSelectedItem();
+            if (user.isEmpty() || pass.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Ingresa nombre de usuario y contraseña.", "Validación", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            try {
+                authController.createUser(user, pass, role, null);
+                txtNewUsername.setText("");
+                txtNewPassword.setText("");
+                loadUsersDataAsync();
+                JOptionPane.showMessageDialog(this, "Cuenta de usuario creada exitosamente.", "Éxito", JOptionPane.INFORMATION_MESSAGE);
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Error al crear cuenta: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+
+        // Tabla de usuarios
+        String[] cols = {"ID", "USUARIO", "ROL", "ESTADO"};
+        usersTableModel = new DefaultTableModel(cols, 0) {
+            @Override
+            public boolean isCellEditable(int r, int c) { return false; }
+        };
+        JTable table = createStyledTable(usersTableModel);
+        JScrollPane scroll = new JScrollPane(table);
+        scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+
+        JPanel centerPanel = new JPanel(new BorderLayout(0, 10));
+        centerPanel.setOpaque(false);
+        centerPanel.add(formCard, BorderLayout.NORTH);
+        centerPanel.add(scroll, BorderLayout.CENTER);
+
+        JButton btnDeactivateUser = new JButton("Desactivar Cuenta Seleccionada");
+        btnDeactivateUser.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        btnDeactivateUser.addActionListener(e -> {
+            int row = table.getSelectedRow();
+            if (row < 0) {
+                JOptionPane.showMessageDialog(this, "Selecciona un usuario de la tabla.", "Atención", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            Long uId = (Long) usersTableModel.getValueAt(row, 0);
+            int confirm = JOptionPane.showConfirmDialog(this, "¿Deseas desactivar el acceso para este usuario?", "Confirmar", JOptionPane.YES_NO_OPTION);
+            if (confirm == JOptionPane.YES_OPTION) {
+                authController.deleteUser(uId);
+                loadUsersDataAsync();
+            }
+        });
+
+        JPanel bottomBar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 8));
+        bottomBar.setOpaque(false);
+        bottomBar.add(btnDeactivateUser);
+        centerPanel.add(bottomBar, BorderLayout.SOUTH);
+
+        panel.add(centerPanel, BorderLayout.CENTER);
+        return panel;
+    }
+
+    private void loadCatalogsDataAsync() {
+        new SwingWorker<Void, Void>() {
+            private List<VehicleTypeCatalog> vehicles;
+            private List<WashType> washTypes;
+
+            @Override
+            protected Void doInBackground() {
+                vehicles = catalogController.getAllVehicleTypes();
+                washTypes = catalogController.getAllWashTypes();
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                if (vehicleCatalogModel != null) {
+                    vehicleCatalogModel.setRowCount(0);
+                    for (VehicleTypeCatalog v : vehicles) {
+                        vehicleCatalogModel.addRow(new Object[]{v.getId(), v.getName(), v.isActive() ? "Activo" : "Inactivo"});
+                    }
+                }
+                if (cmbCatalogVehicles != null) {
+                    cmbCatalogVehicles.removeAllItems();
+                    for (VehicleTypeCatalog v : vehicles) {
+                        cmbCatalogVehicles.addItem(v);
+                    }
+                }
+                if (washTypeCatalogModel != null) {
+                    washTypeCatalogModel.setRowCount(0);
+                    for (WashType wt : washTypes) {
+                        washTypeCatalogModel.addRow(new Object[]{
+                                wt.getId(),
+                                wt.getVehicleTypeName() != null ? wt.getVehicleTypeName() : "-",
+                                wt.getName(),
+                                CURRENCY_FMT.format(wt.getPrice()),
+                                wt.isActive() ? "Activo" : "Inactivo"
+                        });
+                    }
+                }
+            }
+        }.execute();
+    }
+
+    private void loadUsersDataAsync() {
+        new SwingWorker<List<AppUser>, Void>() {
+            @Override
+            protected List<AppUser> doInBackground() {
+                return authController.getAllUsers();
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    List<AppUser> users = get();
+                    if (usersTableModel != null) {
+                        usersTableModel.setRowCount(0);
+                        for (AppUser u : users) {
+                            usersTableModel.addRow(new Object[]{
+                                    u.getId(),
+                                    u.getUsername(),
+                                    u.getRole() != null ? u.getRole().name() : "-",
+                                    u.isActive() ? "Activo" : "Inactivo"
+                            });
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+        }.execute();
+    }
+
+    // =========================================================================
     // CARGA ASÍNCRONA INTELIGENTE
     // =========================================================================
 
@@ -1245,7 +1717,9 @@ public class MainFrame extends JFrame {
             case "history": index = 2; break;
             case "payouts": index = 3; break;
             case "reports": index = 4; break;
-            case "config": index = 5; break;
+            case "catalogs": index = 5; break;
+            case "users": index = 6; break;
+            case "config": index = 7; break;
         }
         if (index < navButtons.size()) {
             JButton active = navButtons.get(index);
@@ -1264,6 +1738,8 @@ public class MainFrame extends JFrame {
                 case "history": loadHistoryDataAsync(); break;
                 case "payouts": loadPayoutsDataAsync(); break;
                 case "reports": loadReportsDataAsync(); break;
+                case "catalogs": loadCatalogsDataAsync(); break;
+                case "users": loadUsersDataAsync(); break;
             }
         }
     }

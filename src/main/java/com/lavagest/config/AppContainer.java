@@ -1,5 +1,7 @@
 package com.lavagest.config;
 
+import com.lavagest.controller.AuthController;
+import com.lavagest.controller.CatalogController;
 import com.lavagest.controller.DashboardController;
 import com.lavagest.controller.PayoutController;
 import com.lavagest.controller.ReportController;
@@ -8,17 +10,27 @@ import com.lavagest.controller.WorkerController;
 import com.lavagest.model.VehicleType;
 import com.lavagest.model.Worker;
 import com.lavagest.repository.InMemoryServiceRateRepository;
+import com.lavagest.repository.InMemoryUserRepository;
+import com.lavagest.repository.InMemoryVehicleTypeCatalogRepository;
 import com.lavagest.repository.InMemoryWashRepository;
+import com.lavagest.repository.InMemoryWashTypeRepository;
 import com.lavagest.repository.InMemoryWorkerPayoutRepository;
 import com.lavagest.repository.InMemoryWorkerRepository;
 import com.lavagest.repository.JdbcServiceRateRepository;
+import com.lavagest.repository.JdbcUserRepository;
+import com.lavagest.repository.JdbcVehicleTypeCatalogRepository;
 import com.lavagest.repository.JdbcWashRepository;
+import com.lavagest.repository.JdbcWashTypeRepository;
 import com.lavagest.repository.JdbcWorkerPayoutRepository;
 import com.lavagest.repository.JdbcWorkerRepository;
 import com.lavagest.repository.ServiceRateRepository;
+import com.lavagest.repository.UserRepository;
+import com.lavagest.repository.VehicleTypeCatalogRepository;
 import com.lavagest.repository.WashRepository;
+import com.lavagest.repository.WashTypeRepository;
 import com.lavagest.repository.WorkerPayoutRepository;
 import com.lavagest.repository.WorkerRepository;
+import com.lavagest.service.AuthService;
 import com.lavagest.service.DashboardService;
 import com.lavagest.service.LavagestService;
 import com.lavagest.service.PayoutService;
@@ -39,6 +51,12 @@ public class AppContainer {
     private final WashRepository washRepository;
     private final WorkerPayoutRepository payoutRepository;
     private final ServiceRateRepository serviceRateRepository;
+    private final UserRepository userRepository;
+    private final VehicleTypeCatalogRepository vehicleTypeCatalogRepository;
+    private final WashTypeRepository washTypeRepository;
+    private final AuthService authService;
+    private final AuthController authController;
+    private final CatalogController catalogController;
 
     private final WorkerService workerService;
     private final LavagestService lavagestService;
@@ -63,6 +81,9 @@ public class AppContainer {
             this.washRepository = new JdbcWashRepository(db);
             this.payoutRepository = new JdbcWorkerPayoutRepository(db);
             this.serviceRateRepository = new JdbcServiceRateRepository(db);
+            this.userRepository = new JdbcUserRepository(db);
+            this.vehicleTypeCatalogRepository = new JdbcVehicleTypeCatalogRepository(db);
+            this.washTypeRepository = new JdbcWashTypeRepository(db);
             db.warmupPool(2);
         } else {
             InMemoryWorkerRepository inMemWorker = new InMemoryWorkerRepository();
@@ -73,6 +94,9 @@ public class AppContainer {
             this.workerRepository = inMemWorker;
             this.washRepository = inMemWash;
             this.payoutRepository = inMemPayout;
+            this.userRepository = new InMemoryUserRepository();
+            this.vehicleTypeCatalogRepository = new InMemoryVehicleTypeCatalogRepository();
+            this.washTypeRepository = new InMemoryWashTypeRepository();
 
             // Sembrar datos de prueba iniciales en memoria
             seedDemoData(inMemWorker, inMemWash);
@@ -91,6 +115,11 @@ public class AppContainer {
         this.payoutController = new PayoutController(this.payoutService, this.workerService);
         this.dashboardController = new DashboardController(this.dashboardService);
         this.reportController = new ReportController(this.reportService);
+
+        // Auth y Catálogos
+        this.authService = new AuthService(this.userRepository);
+        this.authController = new AuthController(this.authService);
+        this.catalogController = new CatalogController(this.vehicleTypeCatalogRepository, this.washTypeRepository);
     }
 
     public static synchronized AppContainer getInstance() {
@@ -121,4 +150,6 @@ public class AppContainer {
     public DashboardController getDashboardController() { return dashboardController; }
     public ReportController getReportController() { return reportController; }
     public ServiceRateRepository getServiceRateRepository() { return serviceRateRepository; }
+    public AuthController getAuthController() { return authController; }
+    public CatalogController getCatalogController() { return catalogController; }
 }

@@ -20,9 +20,11 @@ public class SwingApp {
         } catch (Exception ignored) {
         }
 
-        SwingUtilities.invokeLater(() -> {
-            MainFrame frame = new MainFrame();
-            frame.setVisible(true);
+        SwingUtilities.invokeLater(new Runnable() {
+            public void run() {
+                LoginFrame frame = new LoginFrame();
+                frame.setVisible(true);
+            }
         });
     }
 }

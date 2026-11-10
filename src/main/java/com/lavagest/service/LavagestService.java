@@ -88,6 +88,10 @@ public class LavagestService {
         return washRepository.findByDate(LocalDate.now());
     }
 
+    public List<Wash> getWashesByDate(LocalDate date) {
+        return washRepository.findByDate(date);
+    }
+
     public List<Wash> getWashesByDateRange(LocalDate from, LocalDate to) {
         if (from == null || to == null) throw new IllegalArgumentException("El rango de fechas es obligatorio.");
         if (from.isAfter(to)) throw new IllegalArgumentException("La fecha de inicio no puede ser posterior al fin.");

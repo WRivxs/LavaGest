@@ -19,6 +19,10 @@ public class Wash {
     private PayoutStatus payoutStatus; // Si la comisión ya fue liquidada en caja
     private Long payoutId;           // FK al registro de pago en worker_payouts
     private String notes;
+    private Long washTypeId;        // FK a wash_types
+    private String washTypeName;    // nombre denormalizado para display
+    private String clientName;      // nombre del cliente
+    private Long createdByUserId;   // FK a users (quien registró el lavado)
 
     public Wash() {
     }
@@ -115,6 +119,18 @@ public class Wash {
 
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
+
+    public Long getWashTypeId() { return washTypeId; }
+    public void setWashTypeId(Long washTypeId) { this.washTypeId = washTypeId; }
+
+    public String getWashTypeName() { return washTypeName; }
+    public void setWashTypeName(String washTypeName) { this.washTypeName = washTypeName; }
+
+    public String getClientName() { return clientName; }
+    public void setClientName(String clientName) { this.clientName = clientName; }
+
+    public Long getCreatedByUserId() { return createdByUserId; }
+    public void setCreatedByUserId(Long createdByUserId) { this.createdByUserId = createdByUserId; }
 
     /** Ganancia neta del negocio = precio cobrado - comision del trabajador */
     public BigDecimal getProfit() {

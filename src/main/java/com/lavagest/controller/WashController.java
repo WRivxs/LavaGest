@@ -34,9 +34,6 @@ public class WashController {
         if (request.getPlate() == null || request.getPlate().trim().isEmpty()) {
             throw new IllegalArgumentException("La placa del vehículo es obligatoria.");
         }
-        if (request.getVehicleType() == null) {
-            throw new IllegalArgumentException("Selecciona el tipo de vehículo (Carro o Moto).");
-        }
         if (request.getWorkerId() == null) {
             throw new IllegalArgumentException("Selecciona el trabajador asignado.");
         }
@@ -46,17 +43,39 @@ public class WashController {
 
         Worker worker = workerService.getWorkerById(request.getWorkerId());
 
+        // Determinar VehicleType legacy para compatibilidad (si no viene, usar CARRO por defecto)
+        com.lavagest.model.VehicleType vt = request.getVehicleType();
+        if (vt == null) {
+            String vtName = request.getVehicleTypeName();
+            if (vtName != null && vtName.toLowerCase().contains("moto")) {
+                vt = com.lavagest.model.VehicleType.MOTO;
+            } else {
+                vt = com.lavagest.model.VehicleType.CARRO;
+            }
+        }
+
         Wash wash = lavagestService.registerWash(
                 request.getPlate(),
-                request.getVehicleModel(),
-                request.getVehicleType(),
+                request.getVehicleModel() != null ? request.getVehicleModel() : request.getVehicleTypeName(),
+                vt,
                 worker,
                 request.getPrice(),
                 request.getCommissionPct(),
                 request.getWorkerPayment()
         );
 
+        // Enriquecer con campos nuevos
+        if (request.getWashTypeId() != null) wash.setWashTypeId(request.getWashTypeId());
+        if (request.getWashTypeName() != null) wash.setWashTypeName(request.getWashTypeName());
+        if (request.getClientName() != null) wash.setClientName(request.getClientName());
+        if (request.getCreatedByUserId() != null) wash.setCreatedByUserId(request.getCreatedByUserId());
+
         return toTableRow(wash, worker);
+    }
+
+    /** Retorna lavados del día como lista Wash (para EncargadoFrame) */
+    public List<Wash> getWashesByDate(java.time.LocalDate date) {
+        return lavagestService.getWashesByDate(date);
     }
 
     public List<WashTableRowDTO> getWashesTableToday() {
