@@ -61,14 +61,12 @@ public class WashController {
                 worker,
                 request.getPrice(),
                 request.getCommissionPct(),
-                request.getWorkerPayment()
+                request.getWorkerPayment(),
+                request.getWashTypeId(),
+                request.getWashTypeName(),
+                request.getClientName(),
+                request.getCreatedByUserId()
         );
-
-        // Enriquecer con campos nuevos
-        if (request.getWashTypeId() != null) wash.setWashTypeId(request.getWashTypeId());
-        if (request.getWashTypeName() != null) wash.setWashTypeName(request.getWashTypeName());
-        if (request.getClientName() != null) wash.setClientName(request.getClientName());
-        if (request.getCreatedByUserId() != null) wash.setCreatedByUserId(request.getCreatedByUserId());
 
         return toTableRow(wash, worker);
     }

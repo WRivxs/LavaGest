@@ -21,6 +21,7 @@ import java.util.List;
  * Implementación JDBC de WashRepository para Supabase PostgreSQL.
  */
 public class JdbcWashRepository implements WashRepository {
+    private static final String BASE_SELECT = "SELECT w.*, wt.name AS wash_type_name FROM washes w LEFT JOIN wash_types wt ON w.wash_type_id = wt.id";
     private final DatabaseConfig dbConfig;
 
     public JdbcWashRepository(DatabaseConfig dbConfig) {
@@ -34,8 +35,8 @@ public class JdbcWashRepository implements WashRepository {
     @Override
     public Wash save(Wash wash) {
         String sql = "INSERT INTO washes (plate, vehicle_type, vehicle_model, worker_id, price, commission_pct, " +
-                "worker_payment, wash_date, wash_time, payout_status, notes) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id";
+                "worker_payment, wash_date, wash_time, payout_status, notes, wash_type_id, client_name, created_by_user_id) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id";
         try (Connection conn = dbConfig.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, wash.getPlate());
@@ -49,6 +50,17 @@ public class JdbcWashRepository implements WashRepository {
             ps.setTime(9, wash.getTime() != null ? Time.valueOf(wash.getTime()) : new Time(System.currentTimeMillis()));
             ps.setString(10, wash.getPayoutStatus() != null ? wash.getPayoutStatus().getLabel() : PayoutStatus.PENDIENTE.getLabel());
             ps.setString(11, wash.getNotes());
+            if (wash.getWashTypeId() != null) {
+                ps.setLong(12, wash.getWashTypeId());
+            } else {
+                ps.setNull(12, Types.BIGINT);
+            }
+            ps.setString(13, wash.getClientName());
+            if (wash.getCreatedByUserId() != null) {
+                ps.setLong(14, wash.getCreatedByUserId());
+            } else {
+                ps.setNull(14, Types.BIGINT);
+            }
 
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
@@ -82,12 +94,12 @@ public class JdbcWashRepository implements WashRepository {
 
     @Override
     public List<Wash> findAll() {
-        return queryList("SELECT * FROM washes ORDER BY wash_date DESC, wash_time DESC");
+        return queryList(BASE_SELECT + " ORDER BY w.wash_date DESC, w.wash_time DESC");
     }
 
     @Override
     public Wash findById(Long id) {
-        String sql = "SELECT * FROM washes WHERE id = ?";
+        String sql = BASE_SELECT + " WHERE w.id = ?";
         try (Connection conn = dbConfig.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, id);
@@ -102,12 +114,12 @@ public class JdbcWashRepository implements WashRepository {
 
     @Override
     public List<Wash> findByDate(LocalDate date) {
-        return queryListParamDate("SELECT * FROM washes WHERE wash_date = ? ORDER BY wash_time DESC", date);
+        return queryListParamDate(BASE_SELECT + " WHERE w.wash_date = ? ORDER BY w.wash_time DESC", date);
     }
 
     @Override
     public List<Wash> findByDateRange(LocalDate from, LocalDate to) {
-        String sql = "SELECT * FROM washes WHERE wash_date BETWEEN ? AND ? ORDER BY wash_date DESC, wash_time DESC";
+        String sql = BASE_SELECT + " WHERE w.wash_date BETWEEN ? AND ? ORDER BY w.wash_date DESC, w.wash_time DESC";
         List<Wash> list = new ArrayList<Wash>();
         try (Connection conn = dbConfig.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -124,12 +136,12 @@ public class JdbcWashRepository implements WashRepository {
 
     @Override
     public List<Wash> findByWorkerId(Long workerId) {
-        return queryListParamLong("SELECT * FROM washes WHERE worker_id = ? ORDER BY wash_date DESC, wash_time DESC", workerId);
+        return queryListParamLong(BASE_SELECT + " WHERE w.worker_id = ? ORDER BY w.wash_date DESC, w.wash_time DESC", workerId);
     }
 
     @Override
     public List<Wash> findByWorkerIdAndDateRange(Long workerId, LocalDate from, LocalDate to) {
-        String sql = "SELECT * FROM washes WHERE worker_id = ? AND wash_date BETWEEN ? AND ? ORDER BY wash_date DESC, wash_time DESC";
+        String sql = BASE_SELECT + " WHERE w.worker_id = ? AND w.wash_date BETWEEN ? AND ? ORDER BY w.wash_date DESC, w.wash_time DESC";
         List<Wash> list = new ArrayList<Wash>();
         try (Connection conn = dbConfig.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -147,7 +159,7 @@ public class JdbcWashRepository implements WashRepository {
 
     @Override
     public List<Wash> findByVehicleType(VehicleType vehicleType) {
-        String sql = "SELECT * FROM washes WHERE vehicle_type = ? ORDER BY wash_date DESC, wash_time DESC";
+        String sql = BASE_SELECT + " WHERE w.vehicle_type = ? ORDER BY w.wash_date DESC, w.wash_time DESC";
         List<Wash> list = new ArrayList<Wash>();
         try (Connection conn = dbConfig.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -163,7 +175,7 @@ public class JdbcWashRepository implements WashRepository {
 
     @Override
     public List<Wash> findByPayoutStatus(PayoutStatus status) {
-        String sql = "SELECT * FROM washes WHERE payout_status = ? ORDER BY wash_date DESC, wash_time DESC";
+        String sql = BASE_SELECT + " WHERE w.payout_status = ? ORDER BY w.wash_date DESC, w.wash_time DESC";
         List<Wash> list = new ArrayList<Wash>();
         try (Connection conn = dbConfig.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -179,7 +191,7 @@ public class JdbcWashRepository implements WashRepository {
 
     @Override
     public List<Wash> findByWorkerIdAndPayoutStatus(Long workerId, PayoutStatus status) {
-        String sql = "SELECT * FROM washes WHERE worker_id = ? AND payout_status = ? ORDER BY wash_date DESC, wash_time DESC";
+        String sql = BASE_SELECT + " WHERE w.worker_id = ? AND w.payout_status = ? ORDER BY w.wash_date DESC, w.wash_time DESC";
         List<Wash> list = new ArrayList<Wash>();
         try (Connection conn = dbConfig.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -196,7 +208,7 @@ public class JdbcWashRepository implements WashRepository {
 
     @Override
     public List<Wash> findByPlate(String plate) {
-        String sql = "SELECT * FROM washes WHERE UPPER(plate) LIKE ? ORDER BY wash_date DESC, wash_time DESC";
+        String sql = BASE_SELECT + " WHERE UPPER(w.plate) LIKE ? ORDER BY w.wash_date DESC, w.wash_time DESC";
         List<Wash> list = new ArrayList<Wash>();
         try (Connection conn = dbConfig.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -276,6 +288,21 @@ public class JdbcWashRepository implements WashRepository {
             wash.setPayoutId(pId);
         }
         wash.setNotes(rs.getString("notes"));
+
+        long wtId = rs.getLong("wash_type_id");
+        if (!rs.wasNull()) {
+            wash.setWashTypeId(wtId);
+        }
+        try {
+            wash.setWashTypeName(rs.getString("wash_type_name"));
+        } catch (SQLException ignored) {}
+        try {
+            wash.setClientName(rs.getString("client_name"));
+        } catch (SQLException ignored) {}
+        long cBy = rs.getLong("created_by_user_id");
+        if (!rs.wasNull()) {
+            wash.setCreatedByUserId(cBy);
+        }
         return wash;
     }
 }

@@ -34,6 +34,13 @@ public class LavagestService {
     public Wash registerWash(String plate, String vehicleModel, VehicleType vehicleType,
                              Worker worker, BigDecimal price, BigDecimal commissionPct,
                              BigDecimal workerPayment) {
+        return registerWash(plate, vehicleModel, vehicleType, worker, price, commissionPct, workerPayment, null, null, null, null);
+    }
+
+    public Wash registerWash(String plate, String vehicleModel, VehicleType vehicleType,
+                             Worker worker, BigDecimal price, BigDecimal commissionPct,
+                             BigDecimal workerPayment, Long washTypeId, String washTypeName,
+                             String clientName, Long createdByUserId) {
         validateWorker(worker);
         if (vehicleType == null) {
             throw new IllegalArgumentException("El tipo de vehiculo es obligatorio.");
@@ -59,6 +66,11 @@ public class LavagestService {
                 pct,
                 workerPayment  // null → el constructor calcula automaticamente
         );
+        wash.setWashTypeId(washTypeId);
+        wash.setWashTypeName(washTypeName);
+        wash.setClientName(clientName != null ? clientName : plate);
+        wash.setCreatedByUserId(createdByUserId);
+
         return washRepository.save(wash);
     }
 
