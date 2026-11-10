@@ -76,10 +76,10 @@ SELECT 'Completo', 70000, id FROM vehicle_types_catalog WHERE name = 'Carro'
 ON CONFLICT DO NOTHING;
 
 -- Usuario ADMIN inicial (password: admin123)
--- SHA-256 de "admin123" = 240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a
+-- SHA-256 de "admin123" = 240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9
 INSERT INTO app_users (username, password_hash, role, active)
-VALUES ('admin', '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a', 'admin', true)
-ON CONFLICT (username) DO NOTHING;
+VALUES ('admin', '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9', 'admin', true)
+ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash;
 
 -- ============================================================
 -- VERIFICAR
