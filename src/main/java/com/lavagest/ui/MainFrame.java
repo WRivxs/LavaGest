@@ -290,7 +290,7 @@ public class MainFrame extends JFrame {
                 "Historial de Lavados",
                 "Liquidación / Nómina",
                 "Reportes Financieros",
-                "Tipos de Lavado & Vehículos",
+                "Tipos de Lavado",
                 "Encargados y Accesos",
                 "Configuración"
         };
@@ -1361,14 +1361,17 @@ public class MainFrame extends JFrame {
         vTitle.setFont(new Font("SansSerif", Font.BOLD, 13));
         vTitle.setForeground(PRIMARY);
 
-        JPanel vForm = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 8));
+        JPanel vForm = new JPanel(new BorderLayout(6, 0));
         vForm.setOpaque(false);
-        JTextField txtNewVehicle = new JTextField(12);
-        txtNewVehicle.putClientProperty("JTextField.placeholderText", "Ej: Campero, Moto");
+        vForm.setBorder(BorderFactory.createEmptyBorder(6, 0, 8, 0));
+        JTextField txtNewVehicle = new JTextField();
+        txtNewVehicle.putClientProperty("JTextField.placeholderText", "Ej: Campero, Camioneta");
         JButton btnAddVehicle = createPrimaryButton("＋ Agregar", 30);
-        vForm.add(new JLabel("Nuevo:"));
-        vForm.add(txtNewVehicle);
-        vForm.add(btnAddVehicle);
+        JLabel lblNewV = new JLabel("Nuevo: ");
+        lblNewV.setFont(new Font("SansSerif", Font.PLAIN, 11));
+        vForm.add(lblNewV, BorderLayout.WEST);
+        vForm.add(txtNewVehicle, BorderLayout.CENTER);
+        vForm.add(btnAddVehicle, BorderLayout.EAST);
 
         JPanel vTop = new JPanel();
         vTop.setOpaque(false);
@@ -1431,26 +1434,45 @@ public class MainFrame extends JFrame {
                 BorderFactory.createLineBorder(BORDER, 1),
                 BorderFactory.createEmptyBorder(12, 12, 12, 12)));
 
-        JLabel wTitle = new JLabel("2. TIPOS DE LAVADO & PRECIOS ASIGNADOS");
+        JLabel wTitle = new JLabel("2. TIPOS DE LAVADO POR VEHÍCULO");
         wTitle.setFont(new Font("SansSerif", Font.BOLD, 13));
         wTitle.setForeground(SECONDARY);
 
-        JPanel wForm = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 6));
+        JPanel wForm = new JPanel(new GridLayout(2, 2, 10, 8));
         wForm.setOpaque(false);
+        wForm.setBorder(BorderFactory.createEmptyBorder(6, 0, 8, 0));
 
         cmbCatalogVehicles = new JComboBox<VehicleTypeCatalog>();
-        JTextField txtWashName = new JTextField(10);
+        JTextField txtWashName = new JTextField();
         txtWashName.putClientProperty("JTextField.placeholderText", "Ej: Lavado con motor");
-        JTextField txtWashPrice = new JTextField(6);
-        txtWashPrice.putClientProperty("JTextField.placeholderText", "Precio $");
+        JTextField txtWashPrice = new JTextField();
+        txtWashPrice.putClientProperty("JTextField.placeholderText", "Ej: 45000");
         JButton btnAddWash = createPrimaryButton("＋ Crear Lavado", 30);
 
-        wForm.add(new JLabel("Vehículo:"));
-        wForm.add(cmbCatalogVehicles);
-        wForm.add(new JLabel("Nombre:"));
-        wForm.add(txtWashName);
-        wForm.add(new JLabel("Precio:"));
-        wForm.add(txtWashPrice);
+        JPanel cellVeh = new JPanel(new BorderLayout(4, 0));
+        cellVeh.setOpaque(false);
+        JLabel lblVeh = new JLabel("Vehículo:");
+        lblVeh.setFont(new Font("SansSerif", Font.PLAIN, 11));
+        cellVeh.add(lblVeh, BorderLayout.WEST);
+        cellVeh.add(cmbCatalogVehicles, BorderLayout.CENTER);
+
+        JPanel cellPrice = new JPanel(new BorderLayout(4, 0));
+        cellPrice.setOpaque(false);
+        JLabel lblPrice = new JLabel("Precio $:");
+        lblPrice.setFont(new Font("SansSerif", Font.PLAIN, 11));
+        cellPrice.add(lblPrice, BorderLayout.WEST);
+        cellPrice.add(txtWashPrice, BorderLayout.CENTER);
+
+        JPanel cellName = new JPanel(new BorderLayout(4, 0));
+        cellName.setOpaque(false);
+        JLabel lblName = new JLabel("Nombre:");
+        lblName.setFont(new Font("SansSerif", Font.PLAIN, 11));
+        cellName.add(lblName, BorderLayout.WEST);
+        cellName.add(txtWashName, BorderLayout.CENTER);
+
+        wForm.add(cellVeh);
+        wForm.add(cellPrice);
+        wForm.add(cellName);
         wForm.add(btnAddWash);
 
         JPanel wTop = new JPanel();
@@ -1467,10 +1489,10 @@ public class MainFrame extends JFrame {
         };
         JTable wTable = createStyledTable(washTypeCatalogModel);
         wTable.getColumnModel().getColumn(0).setPreferredWidth(35);
-        wTable.getColumnModel().getColumn(1).setPreferredWidth(90);
+        wTable.getColumnModel().getColumn(1).setPreferredWidth(75);
         wTable.getColumnModel().getColumn(2).setPreferredWidth(140);
-        wTable.getColumnModel().getColumn(3).setPreferredWidth(80);
-        wTable.getColumnModel().getColumn(4).setPreferredWidth(60);
+        wTable.getColumnModel().getColumn(3).setPreferredWidth(90);
+        wTable.getColumnModel().getColumn(4).setPreferredWidth(70);
         rightPanel.add(new JScrollPane(wTable), BorderLayout.CENTER);
 
         JButton btnDeleteWash = new JButton("Desactivar Seleccionado");
@@ -2240,7 +2262,7 @@ public class MainFrame extends JFrame {
             if (colName.contains("PRECIO") || colName.contains("PAGO") || colName.contains("COBRADO")
                     || colName.contains("GENERADO") || colName.contains("MONTO") || colName.contains("INGRESO") || colName.contains("GANANCIA")) {
                 table.getColumnModel().getColumn(i).setCellRenderer(right);
-            } else if (colName.equals("HORA") || colName.equals("FECHA") || colName.equals("PLACA") || colName.equals("ID") || colName.equals("TIPO")) {
+            } else if (colName.equals("HORA") || colName.equals("FECHA") || colName.equals("PLACA") || colName.equals("ID") || colName.equals("TIPO") || colName.equals("ESTADO")) {
                 table.getColumnModel().getColumn(i).setCellRenderer(center);
             }
         }
