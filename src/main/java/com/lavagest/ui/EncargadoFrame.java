@@ -238,118 +238,70 @@ public class EncargadoFrame extends JFrame {
 
     private void showNuevoLavadoModal() {
         JDialog dialog = new JDialog(this, "Nuevo Lavado", true);
-        dialog.setSize(500, 570);
+        dialog.setSize(510, 390);
         dialog.setLocationRelativeTo(this);
         dialog.setResizable(false);
 
-        JPanel panel = new JPanel();
-        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-        panel.setBorder(new EmptyBorder(20, 28, 20, 28));
+        JPanel panel = new JPanel(new BorderLayout(0, 16));
+        panel.setBorder(new EmptyBorder(18, 22, 18, 22));
         panel.setBackground(Color.WHITE);
 
-        // Cliente
-        addLabel(panel, "Cliente / Placa");
-        JTextField txtCliente = new JTextField();
-        txtCliente.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
-        panel.add(txtCliente);
-        panel.add(Box.createVerticalStrut(14));
+        // Cuadrícula 3 filas x 2 columnas
+        JPanel grid = new JPanel(new GridLayout(3, 2, 16, 12));
+        grid.setBackground(Color.WHITE);
 
-        // Tipo de Vehículo
-        addLabel(panel, "Tipo de Vehículo");
+        // Fila 1: Cliente y Placa
+        JTextField txtCliente = new JTextField();
+        JTextField txtPlaca = new JTextField();
+        txtPlaca.setFont(new Font("Segoe UI", Font.BOLD, 13));
+
+        grid.add(createFieldCell("Cliente", txtCliente));
+        grid.add(createFieldCell("Placa del Vehículo", txtPlaca));
+
+        // Fila 2: Tipo de Vehículo y Tipo de Lavado (ambos desplegables)
         List<VehicleTypeCatalog> vehicleTypes = catalogController.getAllVehicleTypes();
         JComboBox<VehicleTypeCatalog> cmbVehicle = new JComboBox<VehicleTypeCatalog>();
         for (VehicleTypeCatalog v : vehicleTypes) cmbVehicle.addItem(v);
-        cmbVehicle.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
-        panel.add(cmbVehicle);
-        panel.add(Box.createVerticalStrut(14));
 
-        // Tipo de Lavado (filtrado por vehículo)
-        addLabel(panel, "Tipo de Lavado");
         JComboBox<WashType> cmbWashType = new JComboBox<WashType>();
-        cmbWashType.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
-        panel.add(cmbWashType);
-        panel.add(Box.createVerticalStrut(14));
 
-        // Precio (auto-llenado)
-        addLabel(panel, "Precio");
+        grid.add(createFieldCell("Tipo de Vehículo", cmbVehicle));
+        grid.add(createFieldCell("Tipo de Lavado", cmbWashType));
+
+        // Fila 3: Trabajador (menú desplegable) y Precio
+        List<Worker> workers = workerController.getActiveWorkers();
+        JComboBox<Worker> cmbWorker = new JComboBox<Worker>();
+        for (Worker w : workers) cmbWorker.addItem(w);
+
         JTextField txtPrecio = new JTextField("0");
         txtPrecio.setEditable(false);
         txtPrecio.setBackground(new Color(240, 245, 255));
-        txtPrecio.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
-        panel.add(txtPrecio);
-        panel.add(Box.createVerticalStrut(14));
+        txtPrecio.setFont(new Font("Segoe UI", Font.BOLD, 13));
 
-        // Trabajador (lista de selección con checks)
-        addLabel(panel, "Asignar Operador (Selecciona de la lista)");
-        List<Worker> workers = workerController.getActiveWorkers();
-        final List<JCheckBox> checkList = new java.util.ArrayList<JCheckBox>();
-        final Worker[] selectedWorker = new Worker[1];
+        grid.add(createFieldCell("Trabajador Asignado", cmbWorker));
+        grid.add(createFieldCell("Precio a Cobrar", txtPrecio));
 
-        JPanel workerCheckListPanel = new JPanel();
-        workerCheckListPanel.setLayout(new BoxLayout(workerCheckListPanel, BoxLayout.Y_AXIS));
-        workerCheckListPanel.setBackground(Color.WHITE);
+        panel.add(grid, BorderLayout.CENTER);
 
-        if (workers.isEmpty()) {
-            workerCheckListPanel.add(new JLabel("No hay operarios registrados activos."));
-        } else {
-            for (final Worker w : workers) {
-                final JCheckBox chk = new JCheckBox("☑  " + w.getName() + " — " + w.getBay() + " (" + w.getShift() + ")");
-                chk.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-                chk.setOpaque(true);
-                chk.setBackground(new Color(248, 250, 255));
-                chk.setBorder(BorderFactory.createCompoundBorder(
-                        BorderFactory.createLineBorder(new Color(228, 234, 248), 1),
-                        new EmptyBorder(5, 8, 5, 8)));
-                chk.setFocusPainted(false);
-                chk.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-
-                chk.addActionListener(new ActionListener() {
-                    public void actionPerformed(ActionEvent e) {
-                        for (JCheckBox other : checkList) {
-                            if (other != chk) other.setSelected(false);
-                        }
-                        if (chk.isSelected()) {
-                            selectedWorker[0] = w;
-                        } else {
-                            selectedWorker[0] = null;
-                        }
-                    }
-                });
-
-                checkList.add(chk);
-                workerCheckListPanel.add(chk);
-                workerCheckListPanel.add(Box.createVerticalStrut(3));
-            }
-            if (!checkList.isEmpty()) {
-                checkList.get(0).setSelected(true);
-                selectedWorker[0] = workers.get(0);
-            }
-        }
-
-        JScrollPane workerScroll = new JScrollPane(workerCheckListPanel);
-        workerScroll.setPreferredSize(new Dimension(0, 95));
-        workerScroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 95));
-        workerScroll.setBorder(BorderFactory.createLineBorder(new Color(220, 225, 235), 1));
-        workerScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-        panel.add(workerScroll);
-        panel.add(Box.createVerticalStrut(16));
-
-        // Botones
+        // Botones abajo
         JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         btnPanel.setBackground(Color.WHITE);
-        btnPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         JButton btnCancelar = new JButton("Cancelar");
+        btnCancelar.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+
         JButton btnGuardar = new JButton("Registrar Lavado");
+        btnGuardar.setFont(new Font("Segoe UI", Font.BOLD, 13));
         btnGuardar.setBackground(new Color(30, 144, 255));
         btnGuardar.setForeground(Color.WHITE);
         btnGuardar.setBorderPainted(false);
         btnGuardar.setOpaque(true);
         btnGuardar.setFocusPainted(false);
+        btnGuardar.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
         btnPanel.add(btnCancelar);
         btnPanel.add(btnGuardar);
-        panel.add(btnPanel);
+        panel.add(btnPanel, BorderLayout.SOUTH);
 
         dialog.setContentPane(panel);
 
@@ -387,12 +339,13 @@ public class EncargadoFrame extends JFrame {
         btnGuardar.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
                 String cliente = txtCliente.getText().trim();
+                String placa = txtPlaca.getText().trim().toUpperCase();
                 WashType washType = (WashType) cmbWashType.getSelectedItem();
-                Worker worker = selectedWorker[0];
+                Worker worker = (Worker) cmbWorker.getSelectedItem();
                 VehicleTypeCatalog vehicle = (VehicleTypeCatalog) cmbVehicle.getSelectedItem();
 
-                if (cliente.isEmpty()) {
-                    JOptionPane.showMessageDialog(dialog, "Ingresa el nombre del cliente o placa.", "Campo requerido", JOptionPane.WARNING_MESSAGE);
+                if (cliente.isEmpty() && placa.isEmpty()) {
+                    JOptionPane.showMessageDialog(dialog, "Ingresa al menos el nombre del cliente o la placa.", "Campo requerido", JOptionPane.WARNING_MESSAGE);
                     return;
                 }
                 if (washType == null) {
@@ -400,7 +353,7 @@ public class EncargadoFrame extends JFrame {
                     return;
                 }
                 if (worker == null) {
-                    JOptionPane.showMessageDialog(dialog, "Selecciona un operario en la lista de checks.", "Campo requerido", JOptionPane.WARNING_MESSAGE);
+                    JOptionPane.showMessageDialog(dialog, "Selecciona un trabajador asignado.", "Campo requerido", JOptionPane.WARNING_MESSAGE);
                     return;
                 }
 
@@ -410,13 +363,14 @@ public class EncargadoFrame extends JFrame {
                 final WashType finalWashType = washType;
                 final Worker finalWorker = worker;
                 final VehicleTypeCatalog finalVehicle = vehicle;
-                final String finalCliente = cliente;
+                final String finalCliente = cliente.isEmpty() ? placa : cliente;
+                final String finalPlaca = placa.isEmpty() ? (finalCliente.length() <= 8 ? finalCliente.toUpperCase() : "S/P") : placa;
 
                 SwingWorker<Boolean, Void> saveWorker = new SwingWorker<Boolean, Void>() {
                     protected Boolean doInBackground() {
                         try {
                             com.lavagest.dto.CreateWashRequest req = new com.lavagest.dto.CreateWashRequest();
-                            req.setPlate(finalCliente.length() <= 8 ? finalCliente.toUpperCase() : "S/P");
+                            req.setPlate(finalPlaca);
                             req.setClientName(finalCliente);
                             req.setVehicleTypeCatalogId(finalVehicle.getId());
                             req.setVehicleTypeName(finalVehicle.getName());
@@ -459,6 +413,26 @@ public class EncargadoFrame extends JFrame {
         });
 
         dialog.setVisible(true);
+    }
+
+    private JPanel createFieldCell(String labelText, JComponent comp) {
+        JPanel cell = new JPanel();
+        cell.setLayout(new BoxLayout(cell, BoxLayout.Y_AXIS));
+        cell.setOpaque(false);
+
+        JLabel lbl = new JLabel(labelText);
+        lbl.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        lbl.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        comp.setAlignmentX(Component.LEFT_ALIGNMENT);
+        comp.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        comp.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
+        comp.setPreferredSize(new Dimension(comp.getPreferredSize().width, 34));
+
+        cell.add(lbl);
+        cell.add(Box.createVerticalStrut(4));
+        cell.add(comp);
+        return cell;
     }
 
     private void addLabel(JPanel panel, String text) {
