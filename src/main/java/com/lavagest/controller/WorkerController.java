@@ -98,6 +98,14 @@ public class WorkerController {
         return workerService.getActiveWorkers();
     }
 
+    public Worker getWorkerById(Long id) {
+        return workerService.getWorkerById(id);
+    }
+
+    public Worker updateWorker(Long id, String name, String phone, String bay, String shift) {
+        return workerService.updateWorker(id, name, phone, bay, shift);
+    }
+
     /**
      * Construye KPIs de trabajadores activos en memoria a partir de lavados ya cargados (0 consultas extra).
      */
@@ -119,6 +127,7 @@ public class WorkerController {
         WorkerKpiDTO kpi = new WorkerKpiDTO();
         kpi.setWorkerId(worker.getId());
         kpi.setWorkerName(worker.getName());
+        kpi.setPhone(worker.getPhone());
         kpi.setBay(worker.getBay());
         kpi.setShift(worker.getShift());
         kpi.setActive(worker.isActive());

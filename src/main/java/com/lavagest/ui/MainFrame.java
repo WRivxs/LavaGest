@@ -162,6 +162,7 @@ public class MainFrame extends JFrame {
     private JTable recentWashesTable;
     private DefaultTableModel allWashesModel;
     private DefaultTableModel workersTableModel;
+    private JTable workersTable;
     private DefaultTableModel payoutsTableModel;
     private DefaultTableModel dailyReportsModel;
     private DefaultTableModel vehicleCatalogModel;
@@ -1180,24 +1181,240 @@ public class MainFrame extends JFrame {
         title.setFont(new Font("SansSerif", Font.BOLD, 18));
         title.setForeground(TEXT);
 
+        JPanel headerRight = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        headerRight.setOpaque(false);
+
         JButton btnNewWorker = createPrimaryButton("＋ Registrar Operador", 34);
         btnNewWorker.addActionListener(e -> showRegisterWorkerDialog());
 
+        JButton btnRefreshWorkers = new JButton("↻ Actualizar");
+        btnRefreshWorkers.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        btnRefreshWorkers.addActionListener(e -> loadWorkersDataAsync());
+
+        headerRight.add(btnNewWorker);
+        headerRight.add(btnRefreshWorkers);
+
         header.add(title, BorderLayout.WEST);
-        header.add(btnNewWorker, BorderLayout.EAST);
+        header.add(headerRight, BorderLayout.EAST);
 
         String[] cols = {"ID", "NOMBRE", "TELÉFONO", "BAHÍA", "TURNO", "LAVADOS", "GENERADO", "COMISIÓN", "ESTADO"};
         workersTableModel = new DefaultTableModel(cols, 0) {
             @Override
             public boolean isCellEditable(int row, int col) { return false; }
         };
-        JTable table = createStyledTable(workersTableModel);
-        JScrollPane scroll = new JScrollPane(table);
+        workersTable = createStyledTable(workersTableModel);
+
+        DefaultTableCellRenderer center = new DefaultTableCellRenderer();
+        center.setHorizontalAlignment(SwingConstants.CENTER);
+
+        DefaultTableCellRenderer right = new DefaultTableCellRenderer();
+        right.setHorizontalAlignment(SwingConstants.RIGHT);
+
+        DefaultTableCellRenderer workerStatusRenderer = new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable tbl, Object value, boolean isSelected, boolean hasFocus, int row, int col) {
+                JLabel l = (JLabel) super.getTableCellRendererComponent(tbl, value, isSelected, hasFocus, row, col);
+                l.setHorizontalAlignment(SwingConstants.CENTER);
+                l.setFont(new Font("Segoe UI", Font.BOLD, 11));
+                if (!isSelected) {
+                    String val = value != null ? value.toString() : "";
+                    if ("Activo".equalsIgnoreCase(val)) {
+                        l.setForeground(new Color(22, 101, 52));
+                    } else {
+                        l.setForeground(new Color(220, 38, 38));
+                    }
+                }
+                return l;
+            }
+        };
+
+        workersTable.getColumnModel().getColumn(0).setPreferredWidth(40);
+        workersTable.getColumnModel().getColumn(1).setPreferredWidth(130);
+        workersTable.getColumnModel().getColumn(2).setPreferredWidth(95);
+        workersTable.getColumnModel().getColumn(3).setPreferredWidth(90);
+        workersTable.getColumnModel().getColumn(4).setPreferredWidth(110);
+        workersTable.getColumnModel().getColumn(5).setPreferredWidth(70);
+        workersTable.getColumnModel().getColumn(6).setPreferredWidth(100);
+        workersTable.getColumnModel().getColumn(7).setPreferredWidth(100);
+        workersTable.getColumnModel().getColumn(8).setPreferredWidth(80);
+
+        workersTable.getColumnModel().getColumn(0).setCellRenderer(center);
+        workersTable.getColumnModel().getColumn(2).setCellRenderer(center);
+        workersTable.getColumnModel().getColumn(3).setCellRenderer(center);
+        workersTable.getColumnModel().getColumn(4).setCellRenderer(center);
+        workersTable.getColumnModel().getColumn(5).setCellRenderer(center);
+        workersTable.getColumnModel().getColumn(6).setCellRenderer(right);
+        workersTable.getColumnModel().getColumn(7).setCellRenderer(right);
+        workersTable.getColumnModel().getColumn(8).setCellRenderer(workerStatusRenderer);
+
+        // Doble clic para editar
+        workersTable.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2 && workersTable.getSelectedRow() >= 0) {
+                    openEditSelectedWorker();
+                }
+            }
+        });
+
+        JScrollPane scroll = new JScrollPane(workersTable);
         scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
 
+        JPanel centerPanel = new JPanel(new BorderLayout(0, 10));
+        centerPanel.setOpaque(false);
+        centerPanel.add(scroll, BorderLayout.CENTER);
+
+        // Barra inferior de acciones
+        JPanel bottomBar = new JPanel(new BorderLayout(10, 0));
+        bottomBar.setOpaque(false);
+        bottomBar.setBorder(BorderFactory.createEmptyBorder(6, 4, 6, 4));
+
+        JLabel lblHint = new JLabel("💡 Haz doble clic en un operador o usa los botones de la derecha para gestionar sus datos.");
+        lblHint.setFont(new Font("Segoe UI", Font.ITALIC, 11));
+        lblHint.setForeground(MUTED);
+        bottomBar.add(lblHint, BorderLayout.WEST);
+
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        actions.setOpaque(false);
+
+        JButton btnEditWorker = new JButton("✏️ Editar Operador");
+        btnEditWorker.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        btnEditWorker.addActionListener(e -> openEditSelectedWorker());
+
+        JButton btnToggleStatus = new JButton("🔄 Activar / Desactivar");
+        btnToggleStatus.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        btnToggleStatus.addActionListener(e -> toggleSelectedWorkerStatus());
+
+        actions.add(btnEditWorker);
+        actions.add(btnToggleStatus);
+        bottomBar.add(actions, BorderLayout.EAST);
+
+        centerPanel.add(bottomBar, BorderLayout.SOUTH);
+
         panel.add(header, BorderLayout.NORTH);
-        panel.add(scroll, BorderLayout.CENTER);
+        panel.add(centerPanel, BorderLayout.CENTER);
         return panel;
+    }
+
+    private void openEditSelectedWorker() {
+        if (workersTable == null || workersTable.getSelectedRow() < 0) {
+            JOptionPane.showMessageDialog(this, "Selecciona un operador de la tabla para editar.", "Atención", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        int row = workersTable.getSelectedRow();
+        Long wId = (Long) workersTableModel.getValueAt(row, 0);
+        Worker target = workerController.getWorkerById(wId);
+        if (target != null) {
+            showEditWorkerDialog(target);
+        }
+    }
+
+    private void showEditWorkerDialog(Worker worker) {
+        if (worker == null) return;
+        JDialog dialog = new JDialog(this, "Editar Operador: " + worker.getName(), true);
+        dialog.setSize(440, 320);
+        dialog.setLocationRelativeTo(this);
+        dialog.setResizable(false);
+
+        JPanel content = new JPanel(new BorderLayout(0, 16));
+        content.setBackground(Color.WHITE);
+        content.setBorder(BorderFactory.createEmptyBorder(18, 22, 18, 22));
+
+        JLabel title = new JLabel("Editar Información del Operador");
+        title.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        title.setForeground(PRIMARY);
+
+        JPanel form = new JPanel(new GridLayout(4, 2, 10, 12));
+        form.setOpaque(false);
+
+        JTextField txtName = new JTextField(worker.getName() != null ? worker.getName() : "");
+        JTextField txtPhone = new JTextField(worker.getPhone() != null ? worker.getPhone() : "");
+        txtPhone.putClientProperty("JTextField.placeholderText", "Ej: 3001234567");
+
+        JComboBox<String> cmbBay = new JComboBox<String>(new String[]{"Bahía 1", "Bahía 2", "Bahía 3", "Bahía 4"});
+        if (worker.getBay() != null) cmbBay.setSelectedItem(worker.getBay());
+
+        JComboBox<String> cmbShift = new JComboBox<String>(new String[]{"Turno Completo", "Medio Turno"});
+        if (worker.getShift() != null) cmbShift.setSelectedItem(worker.getShift());
+
+        form.add(new JLabel("Nombre Completo *:"));
+        form.add(txtName);
+        form.add(new JLabel("Teléfono:"));
+        form.add(txtPhone);
+        form.add(new JLabel("Bahía Asignada:"));
+        form.add(cmbBay);
+        form.add(new JLabel("Turno de Trabajo:"));
+        form.add(cmbShift);
+
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        buttons.setOpaque(false);
+        JButton btnCancel = new JButton("Cancelar");
+        btnCancel.addActionListener(e -> dialog.dispose());
+
+        JButton btnSave = createPrimaryButton("💾 Guardar Cambios", 34);
+        btnSave.addActionListener(e -> {
+            String name = txtName.getText().trim();
+            String phone = txtPhone.getText().trim();
+            String bay = (String) cmbBay.getSelectedItem();
+            String shift = (String) cmbShift.getSelectedItem();
+
+            if (name.isEmpty()) {
+                JOptionPane.showMessageDialog(dialog, "El nombre del operador no puede estar vacío.", "Validación", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            try {
+                workerController.updateWorker(worker.getId(), name, phone.isEmpty() ? null : phone, bay, shift);
+                dialog.dispose();
+                loadWorkersDataAsync();
+                loadDashboardDataAsync();
+                JOptionPane.showMessageDialog(this, "Operador actualizado correctamente.", "Éxito", JOptionPane.INFORMATION_MESSAGE);
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(dialog, "Error al actualizar: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+
+        buttons.add(btnCancel);
+        buttons.add(btnSave);
+
+        content.add(title, BorderLayout.NORTH);
+        content.add(form, BorderLayout.CENTER);
+        content.add(buttons, BorderLayout.SOUTH);
+
+        dialog.setContentPane(content);
+        dialog.setVisible(true);
+    }
+
+    private void toggleSelectedWorkerStatus() {
+        if (workersTable == null || workersTable.getSelectedRow() < 0) {
+            JOptionPane.showMessageDialog(this, "Selecciona un operador de la tabla.", "Atención", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        int row = workersTable.getSelectedRow();
+        Long wId = (Long) workersTableModel.getValueAt(row, 0);
+        String name = (String) workersTableModel.getValueAt(row, 1);
+        String estado = (String) workersTableModel.getValueAt(row, 8);
+        boolean isActive = "Activo".equalsIgnoreCase(estado);
+
+        if (isActive) {
+            int confirm = JOptionPane.showConfirmDialog(this,
+                    "¿Deseas DESACTIVAR al operador '" + name + "'?\n(No aparecerá para nuevos lavados ni en los turnos de liquidación).",
+                    "Confirmar Desactivación", JOptionPane.YES_NO_OPTION);
+            if (confirm == JOptionPane.YES_OPTION) {
+                workerController.deactivateWorker(wId);
+                loadWorkersDataAsync();
+                loadDashboardDataAsync();
+            }
+        } else {
+            int confirm = JOptionPane.showConfirmDialog(this,
+                    "¿Deseas ACTIVAR al operador '" + name + "' para nuevos turnos?",
+                    "Confirmar Activación", JOptionPane.YES_NO_OPTION);
+            if (confirm == JOptionPane.YES_OPTION) {
+                workerController.reactivateWorker(wId);
+                loadWorkersDataAsync();
+                loadDashboardDataAsync();
+            }
+        }
     }
 
     private JPanel buildHistoryView() {
@@ -2170,70 +2387,22 @@ public class MainFrame extends JFrame {
         title.setFont(new Font("SansSerif", Font.BOLD, 18));
         title.setForeground(TEXT);
 
+        JPanel headerRight = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        headerRight.setOpaque(false);
+
+        JButton btnNewUser = createPrimaryButton("＋ Nuevo Usuario", 34);
+        btnNewUser.addActionListener(e -> showCreateUserDialog());
+
         JButton btnRefresh = new JButton("↻ Actualizar");
         btnRefresh.setFont(new Font("SansSerif", Font.PLAIN, 12));
         btnRefresh.addActionListener(e -> loadUsersDataAsync());
 
+        headerRight.add(btnNewUser);
+        headerRight.add(btnRefresh);
+
         header.add(title, BorderLayout.WEST);
-        header.add(btnRefresh, BorderLayout.EAST);
+        header.add(headerRight, BorderLayout.EAST);
         panel.add(header, BorderLayout.NORTH);
-
-        // Formulario de creación arriba
-        JPanel formCard = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 8));
-        formCard.setBackground(SURFACE);
-        formCard.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(BORDER, 1),
-                BorderFactory.createEmptyBorder(8, 12, 8, 12)));
-
-        JTextField txtNewFullName = new JTextField(12);
-        txtNewFullName.putClientProperty("JTextField.placeholderText", "Nombre completo");
-
-        JTextField txtNewPhone = new JTextField(9);
-        txtNewPhone.putClientProperty("JTextField.placeholderText", "Teléfono");
-
-        JTextField txtNewUsername = new JTextField(10);
-        txtNewUsername.putClientProperty("JTextField.placeholderText", "Usuario *");
-
-        JPasswordField txtNewPassword = new JPasswordField(9);
-        txtNewPassword.putClientProperty("JTextField.placeholderText", "Contraseña *");
-
-        JComboBox<Role> cmbRole = new JComboBox<Role>(new Role[]{Role.ENCARGADO, Role.ADMIN});
-        JButton btnCreateUser = createPrimaryButton("＋ Crear Cuenta", 32);
-
-        formCard.add(new JLabel("Nombre:"));
-        formCard.add(txtNewFullName);
-        formCard.add(new JLabel("Teléfono:"));
-        formCard.add(txtNewPhone);
-        formCard.add(new JLabel("Usuario:"));
-        formCard.add(txtNewUsername);
-        formCard.add(new JLabel("Clave:"));
-        formCard.add(txtNewPassword);
-        formCard.add(new JLabel("Rol:"));
-        formCard.add(cmbRole);
-        formCard.add(btnCreateUser);
-
-        btnCreateUser.addActionListener(e -> {
-            String fullName = txtNewFullName.getText().trim();
-            String phone = txtNewPhone.getText().trim();
-            String user = txtNewUsername.getText().trim();
-            String pass = new String(txtNewPassword.getPassword()).trim();
-            Role role = (Role) cmbRole.getSelectedItem();
-            if (user.isEmpty() || pass.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Ingresa nombre de usuario y contraseña.", "Validación", JOptionPane.WARNING_MESSAGE);
-                return;
-            }
-            try {
-                authController.createUser(user, pass, role, null, fullName.isEmpty() ? null : fullName, phone.isEmpty() ? null : phone);
-                txtNewFullName.setText("");
-                txtNewPhone.setText("");
-                txtNewUsername.setText("");
-                txtNewPassword.setText("");
-                loadUsersDataAsync();
-                JOptionPane.showMessageDialog(this, "Cuenta de usuario creada exitosamente.", "Éxito", JOptionPane.INFORMATION_MESSAGE);
-            } catch (Exception ex) {
-                JOptionPane.showMessageDialog(this, "Error al crear cuenta: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-            }
-        });
 
         // Tabla de usuarios
         String[] cols = {"ID", "USUARIO", "NOMBRE COMPLETO", "TELÉFONO", "ROL", "ESTADO"};
@@ -2291,7 +2460,6 @@ public class MainFrame extends JFrame {
 
         JPanel centerPanel = new JPanel(new BorderLayout(0, 10));
         centerPanel.setOpaque(false);
-        centerPanel.add(formCard, BorderLayout.NORTH);
         centerPanel.add(scroll, BorderLayout.CENTER);
 
         // Barra inferior de acciones
@@ -2474,6 +2642,87 @@ public class MainFrame extends JFrame {
 
         content.add(title, BorderLayout.NORTH);
         content.add(centerPanel, BorderLayout.CENTER);
+        content.add(buttons, BorderLayout.SOUTH);
+
+        dialog.setContentPane(content);
+        dialog.setVisible(true);
+    }
+
+    private void showCreateUserDialog() {
+        JDialog dialog = new JDialog(this, "Registrar Nuevo Usuario", true);
+        dialog.setSize(480, 370);
+        dialog.setLocationRelativeTo(this);
+        dialog.setResizable(false);
+
+        JPanel content = new JPanel(new BorderLayout(0, 16));
+        content.setBackground(Color.WHITE);
+        content.setBorder(BorderFactory.createEmptyBorder(20, 24, 20, 24));
+
+        JLabel title = new JLabel("Crear Cuenta de Usuario");
+        title.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        title.setForeground(PRIMARY);
+
+        JPanel form = new JPanel(new GridLayout(5, 2, 10, 12));
+        form.setOpaque(false);
+
+        JTextField txtFullName = new JTextField();
+        txtFullName.putClientProperty("JTextField.placeholderText", "Ej: Juan Carlos Pérez");
+
+        JTextField txtPhone = new JTextField();
+        txtPhone.putClientProperty("JTextField.placeholderText", "Ej: 3001234567");
+
+        JTextField txtUsername = new JTextField();
+        txtUsername.putClientProperty("JTextField.placeholderText", "Ej: juanp");
+
+        JComboBox<Role> cmbRole = new JComboBox<Role>(new Role[]{Role.ENCARGADO, Role.ADMIN});
+
+        JPasswordField txtPassword = new JPasswordField();
+        txtPassword.putClientProperty("JTextField.placeholderText", "Contraseña segura");
+
+        form.add(new JLabel("Nombre Completo:"));
+        form.add(txtFullName);
+        form.add(new JLabel("Teléfono:"));
+        form.add(txtPhone);
+        form.add(new JLabel("Nombre de Usuario *:"));
+        form.add(txtUsername);
+        form.add(new JLabel("Rol de Acceso *:"));
+        form.add(cmbRole);
+        form.add(new JLabel("Contraseña *:"));
+        form.add(txtPassword);
+
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        buttons.setOpaque(false);
+        JButton btnCancel = new JButton("Cancelar");
+        btnCancel.addActionListener(e -> dialog.dispose());
+
+        JButton btnSave = createPrimaryButton("＋ Crear Cuenta", 34);
+        btnSave.addActionListener(e -> {
+            String fullName = txtFullName.getText().trim();
+            String phone = txtPhone.getText().trim();
+            String user = txtUsername.getText().trim();
+            String pass = new String(txtPassword.getPassword()).trim();
+            Role role = (Role) cmbRole.getSelectedItem();
+
+            if (user.isEmpty() || pass.isEmpty()) {
+                JOptionPane.showMessageDialog(dialog, "Ingresa nombre de usuario y contraseña.", "Validación", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            try {
+                authController.createUser(user, pass, role, null, fullName.isEmpty() ? null : fullName, phone.isEmpty() ? null : phone);
+                dialog.dispose();
+                loadUsersDataAsync();
+                JOptionPane.showMessageDialog(this, "Cuenta de usuario creada exitosamente.", "Éxito", JOptionPane.INFORMATION_MESSAGE);
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(dialog, "Error al crear cuenta: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+
+        buttons.add(btnCancel);
+        buttons.add(btnSave);
+
+        content.add(title, BorderLayout.NORTH);
+        content.add(form, BorderLayout.CENTER);
         content.add(buttons, BorderLayout.SOUTH);
 
         dialog.setContentPane(content);
@@ -2786,7 +3035,7 @@ public class MainFrame extends JFrame {
                         workersTableModel.addRow(new Object[]{
                                 k.getWorkerId(),
                                 k.getWorkerName(),
-                                "—",
+                                (k.getPhone() != null && !k.getPhone().trim().isEmpty()) ? k.getPhone() : "—",
                                 k.getBay(),
                                 k.getShift(),
                                 k.getTotalWashes(),

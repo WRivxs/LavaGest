@@ -9,6 +9,7 @@ import java.math.BigDecimal;
 public class WorkerKpiDTO {
     private Long workerId;
     private String workerName;
+    private String phone;
     private String bay;
     private String shift;
     private boolean active;
@@ -38,6 +39,9 @@ public class WorkerKpiDTO {
 
     public String getWorkerName() { return workerName; }
     public void setWorkerName(String workerName) { this.workerName = workerName; }
+
+    public String getPhone() { return phone; }
+    public void setPhone(String phone) { this.phone = phone; }
 
     public String getBay() { return bay; }
     public void setBay(String bay) { this.bay = bay; }
