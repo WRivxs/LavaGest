@@ -981,7 +981,8 @@ public class EncargadoFrame extends JFrame {
                         req.setWashTypeName(washType.getName());
                         req.setWorkerId(worker.getId());
                         req.setPrice(washType.getPrice());
-                        req.setCommissionPct(new BigDecimal("40.00"));
+                        req.setCommissionPct(vehicle != null && vehicle.getCommissionPct() != null
+                                ? vehicle.getCommissionPct() : new BigDecimal("40.00"));
                         req.setCreatedByUserId(currentUser.getId());
                         washController.registerWash(req);
                         return true;

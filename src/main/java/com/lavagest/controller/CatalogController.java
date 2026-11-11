@@ -23,6 +23,7 @@ public class CatalogController {
         VehicleTypeCatalog v = new VehicleTypeCatalog();
         v.setName(name.trim());
         v.setActive(true);
+        v.setCommissionPct(new BigDecimal("40.00"));
         return vehicleTypeRepo.save(v);
     }
 
@@ -44,6 +45,10 @@ public class CatalogController {
 
     public boolean deleteVehicleType(Long id) {
         return vehicleTypeRepo.delete(id);
+    }
+
+    public boolean updateVehicleCommission(Long id, BigDecimal commissionPct) {
+        return vehicleTypeRepo.updateCommission(id, commissionPct);
     }
 
     // --- Tipos de Lavado ---

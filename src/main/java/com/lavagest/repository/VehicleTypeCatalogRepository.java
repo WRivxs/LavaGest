@@ -1,6 +1,7 @@
 package com.lavagest.repository;
 
 import com.lavagest.model.VehicleTypeCatalog;
+import java.math.BigDecimal;
 import java.util.List;
 
 public interface VehicleTypeCatalogRepository {
@@ -10,4 +11,5 @@ public interface VehicleTypeCatalogRepository {
     boolean delete(Long id);
     boolean update(Long id, String newName);
     boolean activate(Long id);
+    boolean updateCommission(Long id, BigDecimal commissionPct);
 }

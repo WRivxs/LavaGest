@@ -3,6 +3,7 @@ package com.lavagest.repository;
 import com.lavagest.config.DatabaseConfig;
 import com.lavagest.model.VehicleTypeCatalog;
 
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -11,7 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * ImplementaciÃ³n JDBC de VehicleTypeCatalogRepository para Supabase PostgreSQL.
+ * Implementación JDBC de VehicleTypeCatalogRepository para Supabase PostgreSQL.
  */
 public class JdbcVehicleTypeCatalogRepository implements VehicleTypeCatalogRepository {
     private final DatabaseConfig dbConfig;
@@ -32,9 +33,10 @@ public class JdbcVehicleTypeCatalogRepository implements VehicleTypeCatalogRepos
                 }
             }
             v.setActive(true);
+            if (v.getCommissionPct() == null) v.setCommissionPct(new BigDecimal("40.00"));
             return v;
         } catch (SQLException e) {
-            throw new RuntimeException("Error guardando tipo de vehÃ­culo: " + e.getMessage(), e);
+            throw new RuntimeException("Error guardando tipo de vehículo: " + e.getMessage(), e);
         }
     }
 
@@ -50,7 +52,7 @@ public class JdbcVehicleTypeCatalogRepository implements VehicleTypeCatalogRepos
             }
             return result;
         } catch (SQLException e) {
-            throw new RuntimeException("Error listando tipos de vehÃ­culo: " + e.getMessage(), e);
+            throw new RuntimeException("Error listando tipos de vehículo: " + e.getMessage(), e);
         }
     }
 
@@ -66,7 +68,7 @@ public class JdbcVehicleTypeCatalogRepository implements VehicleTypeCatalogRepos
             }
             return result;
         } catch (SQLException e) {
-            throw new RuntimeException("Error listando tipos de vehÃ­culo activos: " + e.getMessage(), e);
+            throw new RuntimeException("Error listando tipos de vehículo activos: " + e.getMessage(), e);
         }
     }
 
@@ -78,10 +80,9 @@ public class JdbcVehicleTypeCatalogRepository implements VehicleTypeCatalogRepos
             ps.setLong(1, id);
             return ps.executeUpdate() > 0;
         } catch (SQLException e) {
-            throw new RuntimeException("Error desactivando tipo de vehÃ­culo: " + e.getMessage(), e);
+            throw new RuntimeException("Error desactivando tipo de vehículo: " + e.getMessage(), e);
         }
     }
-
 
     @Override
     public boolean update(Long id, String newName) {
@@ -108,11 +109,31 @@ public class JdbcVehicleTypeCatalogRepository implements VehicleTypeCatalogRepos
         }
     }
 
+    @Override
+    public boolean updateCommission(Long id, BigDecimal commissionPct) {
+        String sql = "UPDATE vehicle_types_catalog SET commission_pct = ? WHERE id = ?";
+        try (Connection conn = dbConfig.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setBigDecimal(1, commissionPct);
+            ps.setLong(2, id);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            throw new RuntimeException("Error actualizando comisión de tipo de vehiculo: " + e.getMessage(), e);
+        }
+    }
+
     private VehicleTypeCatalog mapRow(ResultSet rs) throws SQLException {
         VehicleTypeCatalog v = new VehicleTypeCatalog();
         v.setId(rs.getLong("id"));
         v.setName(rs.getString("name"));
         v.setActive(rs.getBoolean("active"));
+        try {
+            BigDecimal pct = rs.getBigDecimal("commission_pct");
+            v.setCommissionPct(pct != null ? pct : new BigDecimal("40.00"));
+        } catch (SQLException ex) {
+            // Columna aún no existe (antes de migración)
+            v.setCommissionPct(new BigDecimal("40.00"));
+        }
         return v;
     }
 }

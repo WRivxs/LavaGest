@@ -169,6 +169,7 @@ public class MainFrame extends JFrame {
     private DefaultTableModel washTypeCatalogModel;
     private DefaultTableModel usersTableModel;
     private JComboBox<VehicleTypeCatalog> cmbCatalogVehicles;
+    private JComboBox<VehicleTypeCatalog> cmbCommissionVehicle;
     private List<VehicleTypeCatalog> adminVehiclesList = new ArrayList<VehicleTypeCatalog>();
     private List<WashType> adminWashTypesList = new ArrayList<WashType>();
 
@@ -1011,7 +1012,8 @@ public class MainFrame extends JFrame {
             request.setWashTypeName(selW.getName());
             request.setWorkerId(modalSelectedWorkerId[0]);
             request.setPrice(selW.getPrice());
-            request.setCommissionPct(new BigDecimal("40.00"));
+            request.setCommissionPct(selV != null && selV.getCommissionPct() != null
+                    ? selV.getCommissionPct() : new BigDecimal("40.00"));
             if (currentUser != null) {
                 request.setCreatedByUserId(currentUser.getId());
             }
@@ -1844,15 +1846,16 @@ public class MainFrame extends JFrame {
         vTop.add(vForm);
         leftPanel.add(vTop, BorderLayout.NORTH);
 
-        String[] vCols = {"ID", "NOMBRE", "ESTADO"};
+        String[] vCols = {"ID", "NOMBRE", "COMISIÓN (%)", "ESTADO"};
         vehicleCatalogModel = new DefaultTableModel(vCols, 0) {
             @Override
             public boolean isCellEditable(int r, int c) { return false; }
         };
         JTable vTable = createStyledTable(vehicleCatalogModel);
-        vTable.getColumnModel().getColumn(0).setPreferredWidth(40);
-        vTable.getColumnModel().getColumn(1).setPreferredWidth(160);
-        vTable.getColumnModel().getColumn(2).setPreferredWidth(70);
+        vTable.getColumnModel().getColumn(0).setPreferredWidth(35);
+        vTable.getColumnModel().getColumn(1).setPreferredWidth(130);
+        vTable.getColumnModel().getColumn(2).setPreferredWidth(90);
+        vTable.getColumnModel().getColumn(3).setPreferredWidth(65);
         leftPanel.add(new JScrollPane(vTable), BorderLayout.CENTER);
 
         JPanel vBottom = new JPanel(new BorderLayout(8, 0));
@@ -1889,7 +1892,7 @@ public class MainFrame extends JFrame {
             if (!e.getValueIsAdjusting()) {
                 int row = vTable.getSelectedRow();
                 if (row >= 0 && row < vehicleCatalogModel.getRowCount()) {
-                    String status = (String) vehicleCatalogModel.getValueAt(row, 2);
+                    String status = (String) vehicleCatalogModel.getValueAt(row, 3);
                     if ("Activo".equalsIgnoreCase(status)) {
                         btnToggleVehicle.setText("⊘ Desactivar");
                         btnToggleVehicle.setBackground(new Color(254, 242, 242));
@@ -1932,7 +1935,7 @@ public class MainFrame extends JFrame {
             }
             Long vId = (Long) vehicleCatalogModel.getValueAt(row, 0);
             String vName = (String) vehicleCatalogModel.getValueAt(row, 1);
-            String status = (String) vehicleCatalogModel.getValueAt(row, 2);
+            String status = (String) vehicleCatalogModel.getValueAt(row, 3);
             boolean isActive = "Activo".equalsIgnoreCase(status);
 
             if (isActive) {
@@ -2180,6 +2183,132 @@ public class MainFrame extends JFrame {
         split.add(leftPanel);
         split.add(rightPanel);
         panel.add(split, BorderLayout.CENTER);
+
+        // --- Panel Inferior: Comisión por Tipo de Vehículo ---
+        JPanel commPanel = new JPanel(new BorderLayout());
+        commPanel.setBackground(SURFACE);
+        commPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 0, 0, BORDER),
+                BorderFactory.createEmptyBorder(12, 16, 12, 16)));
+
+        JLabel commTitle = new JLabel("💰 3. ESQUEMA DE COMISIONES POR TIPO DE VEHÍCULO");
+        commTitle.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        commTitle.setForeground(new Color(161, 85, 0));
+        commTitle.setBorder(BorderFactory.createEmptyBorder(0, 0, 8, 0));
+
+        JPanel commForm = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 4));
+        commForm.setOpaque(false);
+
+        JLabel lblCommVeh = new JLabel("Vehículo:");
+        lblCommVeh.setFont(new Font("Segoe UI", Font.BOLD, 12));
+
+        JComboBox<VehicleTypeCatalog> cmbCommVehicle = new JComboBox<>();
+        cmbCommVehicle.setPreferredSize(new Dimension(170, 32));
+
+        JLabel lblCommPct = new JLabel("Comisión Trabajador (%):");
+        lblCommPct.setFont(new Font("Segoe UI", Font.BOLD, 12));
+
+        JTextField txtCommPct = new JTextField(5);
+        txtCommPct.putClientProperty("JTextField.placeholderText", "Ej: 40.00");
+        txtCommPct.setPreferredSize(new Dimension(75, 32));
+
+        JLabel lblNegocioPct = new JLabel("Margen Negocio: 60.00%");
+        lblNegocioPct.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        lblNegocioPct.setForeground(new Color(22, 101, 52));
+
+        JLabel lblSimulacion = new JLabel("  • Ejemplo ($30.000): Trabajador $12.000 | Negocio $18.000");
+        lblSimulacion.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        lblSimulacion.setForeground(MUTED);
+
+        JButton btnSaveComm = createPrimaryButton("💾 Guardar Comisión", 32);
+
+        // Helper para recalcular el margen de negocio y ejemplo en tiempo real
+        Runnable recalcularVista = () -> {
+            String val = txtCommPct.getText().trim();
+            try {
+                BigDecimal workerPct = val.isEmpty() ? BigDecimal.ZERO : new BigDecimal(val);
+                if (workerPct.compareTo(BigDecimal.ZERO) >= 0 && workerPct.compareTo(new BigDecimal("100")) <= 0) {
+                    BigDecimal ownerPct = new BigDecimal("100.00").subtract(workerPct);
+                    lblNegocioPct.setText("Margen Negocio: " + ownerPct.toPlainString() + "%");
+                    
+                    BigDecimal refPrice = new BigDecimal("30000");
+                    BigDecimal workerVal = refPrice.multiply(workerPct).divide(new BigDecimal("100"));
+                    BigDecimal ownerVal = refPrice.subtract(workerVal);
+                    lblSimulacion.setText("  • Ejemplo ($30.000): Trabajador " + CURRENCY_FMT.format(workerVal) + 
+                                          " (" + workerPct.toPlainString() + "%) | Negocio " + 
+                                          CURRENCY_FMT.format(ownerVal) + " (" + ownerPct.toPlainString() + "%)");
+                }
+            } catch (Exception ignored) {}
+        };
+
+        txtCommPct.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { recalcularVista.run(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { recalcularVista.run(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { recalcularVista.run(); }
+        });
+
+        // Al seleccionar un vehículo en el combo, pre-cargar su % actual
+        cmbCommVehicle.addActionListener(e2 -> {
+            VehicleTypeCatalog sel = (VehicleTypeCatalog) cmbCommVehicle.getSelectedItem();
+            if (sel != null && sel.getCommissionPct() != null) {
+                txtCommPct.setText(sel.getCommissionPct().toPlainString());
+                recalcularVista.run();
+            }
+        });
+
+        btnSaveComm.addActionListener(e2 -> {
+            VehicleTypeCatalog sel = (VehicleTypeCatalog) cmbCommVehicle.getSelectedItem();
+            if (sel == null) {
+                JOptionPane.showMessageDialog(this, "Selecciona un tipo de vehículo.", "Validación", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            String pctStr = txtCommPct.getText().trim();
+            if (pctStr.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Ingresa el porcentaje de comisión.", "Validación", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            try {
+                BigDecimal pct = new BigDecimal(pctStr);
+                if (pct.compareTo(BigDecimal.ZERO) < 0 || pct.compareTo(new BigDecimal("100")) > 0) {
+                    JOptionPane.showMessageDialog(this, "El porcentaje debe estar entre 0 y 100.", "Validación", JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
+                boolean ok = catalogController.updateVehicleCommission(sel.getId(), pct);
+                if (ok) {
+                    BigDecimal ownerPct = new BigDecimal("100.00").subtract(pct);
+                    JOptionPane.showMessageDialog(this,
+                            "✅ Comisión actualizada para " + sel.getName() + ":\n" +
+                            "• Trabajador: " + pct.toPlainString() + "%\n" +
+                            "• Dueño / Negocio: " + ownerPct.toPlainString() + "%",
+                            "Comisión Guardada", JOptionPane.INFORMATION_MESSAGE);
+                    loadCatalogsDataAsync();
+                } else {
+                    JOptionPane.showMessageDialog(this, "No se pudo actualizar la comisión.", "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            } catch (NumberFormatException nfe) {
+                JOptionPane.showMessageDialog(this, "Porcentaje inválido. Usa formato numérico (Ej: 40.00)", "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+
+        commForm.add(lblCommVeh);
+        commForm.add(cmbCommVehicle);
+        commForm.add(lblCommPct);
+        commForm.add(txtCommPct);
+        commForm.add(btnSaveComm);
+        commForm.add(lblNegocioPct);
+        commForm.add(lblSimulacion);
+
+        JPanel commContent = new JPanel(new BorderLayout());
+        commContent.setOpaque(false);
+        commContent.add(commTitle, BorderLayout.NORTH);
+        commContent.add(commForm, BorderLayout.CENTER);
+
+        commPanel.add(commContent, BorderLayout.CENTER);
+        panel.add(commPanel, BorderLayout.SOUTH);
+
+        // Guardamos referencia al combo de comisiones para llenarlo en loadCatalogsDataAsync
+        this.cmbCommissionVehicle = cmbCommVehicle;
+
         return panel;
     }
 
@@ -2749,7 +2878,8 @@ public class MainFrame extends JFrame {
                 if (vehicleCatalogModel != null) {
                     vehicleCatalogModel.setRowCount(0);
                     for (VehicleTypeCatalog v : adminVehiclesList) {
-                        vehicleCatalogModel.addRow(new Object[]{v.getId(), v.getName(), v.isActive() ? "Activo" : "Inactivo"});
+                        String commStr = v.getCommissionPct() != null ? v.getCommissionPct().toPlainString() + "%" : "40.00%";
+                        vehicleCatalogModel.addRow(new Object[]{v.getId(), v.getName(), commStr, v.isActive() ? "Activo" : "Inactivo"});
                     }
                 }
                 if (cmbCatalogVehicles != null) {
@@ -2757,6 +2887,24 @@ public class MainFrame extends JFrame {
                     for (VehicleTypeCatalog v : adminVehiclesList) {
                         if (v.isActive()) {
                             cmbCatalogVehicles.addItem(v);
+                        }
+                    }
+                }
+                if (cmbCommissionVehicle != null) {
+                    VehicleTypeCatalog prevSel = (VehicleTypeCatalog) cmbCommissionVehicle.getSelectedItem();
+                    cmbCommissionVehicle.removeAllItems();
+                    for (VehicleTypeCatalog v : adminVehiclesList) {
+                        if (v.isActive()) {
+                            cmbCommissionVehicle.addItem(v);
+                        }
+                    }
+                    // Restaurar selección anterior si aún existe
+                    if (prevSel != null) {
+                        for (int i = 0; i < cmbCommissionVehicle.getItemCount(); i++) {
+                            if (cmbCommissionVehicle.getItemAt(i).getId().equals(prevSel.getId())) {
+                                cmbCommissionVehicle.setSelectedIndex(i);
+                                break;
+                            }
                         }
                     }
                 }
