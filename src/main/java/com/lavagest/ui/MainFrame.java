@@ -68,6 +68,7 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.time.LocalDate;
@@ -78,6 +79,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -964,7 +966,8 @@ public class MainFrame extends JFrame {
                 currentPrice[0] = BigDecimal.ZERO;
             }
             BigDecimal p = currentPrice[0];
-            BigDecimal wp = p.multiply(new BigDecimal("40.00")).divide(new BigDecimal("100"), 2, java.math.RoundingMode.HALF_UP);
+            BigDecimal commPct = (selV != null && selV.getCommissionPct() != null) ? selV.getCommissionPct() : new BigDecimal("40.00");
+            BigDecimal wp = p.multiply(commPct).divide(new BigDecimal("100"), 2, java.math.RoundingMode.HALF_UP);
             BigDecimal profit = p.subtract(wp);
             previewPriceLabel.setText(CURRENCY_FMT.format(p));
             previewPaymentLabel.setText(CURRENCY_FMT.format(wp));
@@ -974,10 +977,12 @@ public class MainFrame extends JFrame {
         cmbVehicles.addActionListener(e -> updateWashTypes.run());
         cmbWashes.addActionListener(e -> {
             WashType selW = (WashType) cmbWashes.getSelectedItem();
+            VehicleTypeCatalog selV = (VehicleTypeCatalog) cmbVehicles.getSelectedItem();
             if (selW != null) {
                 currentPrice[0] = selW.getPrice();
                 BigDecimal p = currentPrice[0];
-                BigDecimal wp = p.multiply(new BigDecimal("40.00")).divide(new BigDecimal("100"), 2, java.math.RoundingMode.HALF_UP);
+                BigDecimal commPct = (selV != null && selV.getCommissionPct() != null) ? selV.getCommissionPct() : new BigDecimal("40.00");
+                BigDecimal wp = p.multiply(commPct).divide(new BigDecimal("100"), 2, java.math.RoundingMode.HALF_UP);
                 BigDecimal profit = p.subtract(wp);
                 previewPriceLabel.setText(CURRENCY_FMT.format(p));
                 previewPaymentLabel.setText(CURRENCY_FMT.format(wp));
