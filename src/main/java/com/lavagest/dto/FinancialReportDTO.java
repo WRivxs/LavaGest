@@ -19,6 +19,10 @@ public class FinancialReportDTO {
     private BigDecimal incomeCars;
     private BigDecimal incomeMotos;
 
+    // Desglose dinámico por nombre de tipo de vehículo (Carro, Moto, Camioneta, etc.)
+    private java.util.Map<String, BigDecimal> incomeByVehicle = new java.util.LinkedHashMap<>();
+    private java.util.Map<String, Integer> countByVehicle = new java.util.LinkedHashMap<>();
+
     // Consolidado financiero
     private BigDecimal grossIncome;       // Ingresos Brutos Totales
     private BigDecimal totalCommissions;  // Comisiones de trabajadores causadas
@@ -84,4 +88,10 @@ public class FinancialReportDTO {
 
     public BigDecimal getAvgDailyIncome() { return avgDailyIncome; }
     public void setAvgDailyIncome(BigDecimal avgDailyIncome) { this.avgDailyIncome = avgDailyIncome; }
+
+    public java.util.Map<String, BigDecimal> getIncomeByVehicle() { return incomeByVehicle; }
+    public void setIncomeByVehicle(java.util.Map<String, BigDecimal> incomeByVehicle) { this.incomeByVehicle = incomeByVehicle; }
+
+    public java.util.Map<String, Integer> getCountByVehicle() { return countByVehicle; }
+    public void setCountByVehicle(java.util.Map<String, Integer> countByVehicle) { this.countByVehicle = countByVehicle; }
 }

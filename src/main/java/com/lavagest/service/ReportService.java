@@ -134,11 +134,20 @@ public class ReportService {
         BigDecimal grossIncome = BigDecimal.ZERO;
         BigDecimal commissions = BigDecimal.ZERO;
         BigDecimal netProfit = BigDecimal.ZERO;
+        Map<String, BigDecimal> incomeByVeh = new LinkedHashMap<>();
+        Map<String, Integer> countByVeh = new LinkedHashMap<>();
 
         for (Wash w : washes) {
             grossIncome = grossIncome.add(w.getPrice());
             commissions = commissions.add(w.getWorkerPayment());
             netProfit = netProfit.add(w.getProfit());
+
+            String vName = w.getVehicleModel() != null && !w.getVehicleModel().trim().isEmpty() 
+                    ? w.getVehicleModel().trim() 
+                    : (w.getVehicleType() != null ? w.getVehicleType().getLabel() : "Otro");
+            incomeByVeh.put(vName, incomeByVeh.getOrDefault(vName, BigDecimal.ZERO).add(w.getPrice()));
+            countByVeh.put(vName, countByVeh.getOrDefault(vName, 0) + 1);
+
             if (VehicleType.CARRO == w.getVehicleType()) {
                 cars++;
                 incomeCars = incomeCars.add(w.getPrice());
@@ -153,6 +162,8 @@ public class ReportService {
         row.setMotosCount(motos);
         row.setIncomeCars(incomeCars);
         row.setIncomeMotos(incomeMotos);
+        row.setIncomeByVehicle(incomeByVeh);
+        row.setCountByVehicle(countByVeh);
         row.setGrossIncome(grossIncome);
         row.setTotalCommissions(commissions);
         row.setNetProfit(netProfit);

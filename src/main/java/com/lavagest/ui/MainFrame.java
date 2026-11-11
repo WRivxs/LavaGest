@@ -187,6 +187,22 @@ public class MainFrame extends JFrame {
     private JLabel lblCountPayoutsAdmin;
     private List<WorkerPayout> currentLoadedPayoutsAdmin = new ArrayList<WorkerPayout>();
 
+    // Módulo Reportes Financieros
+    private JComboBox<String> cmbReportPeriodFilter;
+    private JLabel repKpiIncomeTotal;
+    private JLabel repKpiIncomeSub;
+    private JLabel repKpiCommissionsTotal;
+    private JLabel repKpiCommissionsSub;
+    private JLabel repKpiProfitTotal;
+    private JLabel repKpiProfitSub;
+    private JLabel repKpiMarginTotal;
+    private JLabel repKpiMarginSub;
+    private JLabel repKpiTicketAvg;
+    private JLabel repKpiTicketSub;
+    private JPanel repChartTrendPanel;
+    private JPanel repChartVehiclePanel;
+    private JLabel repTableSummaryLabel;
+
     // Usuarios Admin
     private List<AppUser> allUsersList = new ArrayList<AppUser>();
     private JTable usersTable;
@@ -1677,31 +1693,183 @@ public class MainFrame extends JFrame {
     }
 
     private JPanel buildReportsView() {
-        JPanel panel = new JPanel(new BorderLayout());
+        JPanel panel = new JPanel(new BorderLayout(0, 14));
         panel.setBackground(BG);
         panel.setBorder(BorderFactory.createEmptyBorder(16, 20, 20, 20));
 
-        JPanel header = new JPanel(new BorderLayout());
+        // 1. HEADER CON SELECTOR DE PERÍODO
+        JPanel header = new JPanel(new BorderLayout(16, 0));
         header.setOpaque(false);
-        header.setBorder(BorderFactory.createEmptyBorder(0, 0, 12, 0));
 
-        JLabel title = new JLabel("Reportes Financieros de Ingresos");
-        title.setFont(new Font("SansSerif", Font.BOLD, 18));
+        JPanel leftHeader = new JPanel();
+        leftHeader.setOpaque(false);
+        leftHeader.setLayout(new BoxLayout(leftHeader, BoxLayout.Y_AXIS));
+
+        JLabel title = new JLabel("📊 Reportes Financieros y Balance General");
+        title.setFont(new Font("Segoe UI", Font.BOLD, 19));
         title.setForeground(TEXT);
 
-        header.add(title, BorderLayout.WEST);
+        JLabel subtitle = new JLabel("Auditoría de ingresos brutos, comisiones de nómina, desembolsos y ganancia neta");
+        subtitle.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        subtitle.setForeground(MUTED);
 
-        String[] cols = {"PERÍODO", "LAVADOS", "CARROS", "MOTOS", "INGRESO BRUTO", "COMISIONES", "CAJA DESEMBOLSOS", "GANANCIA NETA"};
+        leftHeader.add(title);
+        leftHeader.add(Box.createVerticalStrut(2));
+        leftHeader.add(subtitle);
+
+        JPanel filterControls = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        filterControls.setOpaque(false);
+
+        JLabel lblFilter = new JLabel("Período:");
+        lblFilter.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        lblFilter.setForeground(TEXT);
+
+        String[] periods = {"📅 Hoy", "📅 Ayer", "📅 Esta Semana", "📅 Este Mes", "📅 Últimos 30 Días", "📅 Todo el Historial"};
+        cmbReportPeriodFilter = new JComboBox<>(periods);
+        cmbReportPeriodFilter.setSelectedIndex(3); // Por defecto: Este Mes
+        cmbReportPeriodFilter.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        cmbReportPeriodFilter.setPreferredSize(new Dimension(160, 32));
+        cmbReportPeriodFilter.addActionListener(e -> loadReportsDataAsync());
+
+        JButton btnRefresh = new JButton("↻ Actualizar");
+        btnRefresh.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        btnRefresh.setPreferredSize(new Dimension(110, 32));
+        btnRefresh.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btnRefresh.addActionListener(e -> loadReportsDataAsync());
+
+        filterControls.add(lblFilter);
+        filterControls.add(cmbReportPeriodFilter);
+        filterControls.add(btnRefresh);
+
+        header.add(leftHeader, BorderLayout.WEST);
+        header.add(filterControls, BorderLayout.EAST);
+
+        // 2. FILA DE 5 KPIS EJECUTIVOS
+        JPanel kpiRow = new JPanel(new GridLayout(1, 5, 12, 0));
+        kpiRow.setOpaque(false);
+        kpiRow.setPreferredSize(new Dimension(0, 85));
+
+        repKpiIncomeTotal = new JLabel("$0");
+        repKpiIncomeSub = new JLabel("0 lavados");
+        kpiRow.add(createKpiCard("FACTURACIÓN BRUTA", repKpiIncomeTotal, repKpiIncomeSub, PRIMARY));
+
+        repKpiCommissionsTotal = new JLabel("$0");
+        repKpiCommissionsSub = new JLabel("Nómina devengada");
+        kpiRow.add(createKpiCard("COMISIÓN OPERADORES", repKpiCommissionsTotal, repKpiCommissionsSub, SECONDARY));
+
+        repKpiProfitTotal = new JLabel("$0");
+        repKpiProfitSub = new JLabel("Ganancia neta");
+        kpiRow.add(createKpiCard("UTILIDAD DEL NEGOCIO", repKpiProfitTotal, repKpiProfitSub, GREEN));
+
+        repKpiMarginTotal = new JLabel("0.0%");
+        repKpiMarginSub = new JLabel("Margen libre dueño");
+        kpiRow.add(createKpiCard("% RENTABILIDAD", repKpiMarginTotal, repKpiMarginSub, new Color(161, 85, 0)));
+
+        repKpiTicketAvg = new JLabel("$0");
+        repKpiTicketSub = new JLabel("Promedio por lavado");
+        kpiRow.add(createKpiCard("TICKET PROMEDIO", repKpiTicketAvg, repKpiTicketSub, PRIMARY));
+
+        // 3. SECCIÓN CENTRAL: 2 GRÁFICAS NATIVAS DE BARRAS
+        JPanel chartsSplit = new JPanel(new GridLayout(1, 2, 14, 0));
+        chartsSplit.setOpaque(false);
+        chartsSplit.setPreferredSize(new Dimension(0, 190));
+
+        // Gráfica A: Ingresos vs Utilidad
+        JPanel trendCard = new JPanel(new BorderLayout());
+        trendCard.setBackground(SURFACE);
+        trendCard.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(BORDER, 1),
+                BorderFactory.createEmptyBorder(10, 14, 10, 14)));
+
+        JPanel trendHeader = new JPanel(new BorderLayout());
+        trendHeader.setOpaque(false);
+        JLabel lblTrendTitle = new JLabel("📈 Tendencia: Facturación vs Utilidad Neta");
+        lblTrendTitle.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        lblTrendTitle.setForeground(TEXT);
+
+        JLabel lblLegend = new JLabel("■ Facturación  ░ Ganancia ");
+        lblLegend.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        lblLegend.setForeground(MUTED);
+        trendHeader.add(lblTrendTitle, BorderLayout.WEST);
+        trendHeader.add(lblLegend, BorderLayout.EAST);
+
+        repChartTrendPanel = new JPanel(new BorderLayout());
+        repChartTrendPanel.setOpaque(false);
+        trendCard.add(trendHeader, BorderLayout.NORTH);
+        trendCard.add(repChartTrendPanel, BorderLayout.CENTER);
+
+        // Gráfica B: Desglose por Tipo de Vehículo
+        JPanel vehCard = new JPanel(new BorderLayout());
+        vehCard.setBackground(SURFACE);
+        vehCard.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(BORDER, 1),
+                BorderFactory.createEmptyBorder(10, 14, 10, 14)));
+
+        JLabel lblVehTitle = new JLabel("🚗 Distribución y Rendimiento por Tipo de Vehículo");
+        lblVehTitle.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        lblVehTitle.setForeground(TEXT);
+
+        repChartVehiclePanel = new JPanel();
+        repChartVehiclePanel.setOpaque(false);
+        repChartVehiclePanel.setLayout(new BoxLayout(repChartVehiclePanel, BoxLayout.Y_AXIS));
+
+        vehCard.add(lblVehTitle, BorderLayout.NORTH);
+        vehCard.add(repChartVehiclePanel, BorderLayout.CENTER);
+
+        chartsSplit.add(trendCard);
+        chartsSplit.add(vehCard);
+
+        // Contenedor Norte que junta Header + KPIs + Gráficos
+        JPanel topSection = new JPanel();
+        topSection.setOpaque(false);
+        topSection.setLayout(new BoxLayout(topSection, BoxLayout.Y_AXIS));
+        topSection.add(header);
+        topSection.add(Box.createVerticalStrut(14));
+        topSection.add(kpiRow);
+        topSection.add(Box.createVerticalStrut(14));
+        topSection.add(chartsSplit);
+        topSection.add(Box.createVerticalStrut(14));
+
+        // 4. TABLA DETALLADA HISTÓRICA CON PIE DE TOTALES
+        JPanel tableContainer = new JPanel(new BorderLayout(0, 6));
+        tableContainer.setOpaque(false);
+
+        JPanel tableTitleBar = new JPanel(new BorderLayout());
+        tableTitleBar.setOpaque(false);
+
+        JLabel lblTableTitle = new JLabel("📋 Detalle Cronológico del Período");
+        lblTableTitle.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        lblTableTitle.setForeground(TEXT);
+
+        repTableSummaryLabel = new JLabel("Cargando datos...");
+        repTableSummaryLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        repTableSummaryLabel.setForeground(PRIMARY);
+
+        tableTitleBar.add(lblTableTitle, BorderLayout.WEST);
+        tableTitleBar.add(repTableSummaryLabel, BorderLayout.EAST);
+
+        String[] cols = {"PERÍODO", "LAVADOS", "FACTURACIÓN", "COMISIÓN LAVADOR", "DESEMBOLSOS CAJA", "UTILIDAD NETA", "RENTABILIDAD"};
         dailyReportsModel = new DefaultTableModel(cols, 0) {
             @Override
             public boolean isCellEditable(int row, int col) { return false; }
         };
         JTable table = createStyledTable(dailyReportsModel);
+        table.getColumnModel().getColumn(0).setPreferredWidth(160);
+        table.getColumnModel().getColumn(1).setPreferredWidth(70);
+        table.getColumnModel().getColumn(2).setPreferredWidth(110);
+        table.getColumnModel().getColumn(3).setPreferredWidth(120);
+        table.getColumnModel().getColumn(4).setPreferredWidth(120);
+        table.getColumnModel().getColumn(5).setPreferredWidth(110);
+        table.getColumnModel().getColumn(6).setPreferredWidth(90);
+
         JScrollPane scroll = new JScrollPane(table);
         scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
 
-        panel.add(header, BorderLayout.NORTH);
-        panel.add(scroll, BorderLayout.CENTER);
+        tableContainer.add(tableTitleBar, BorderLayout.NORTH);
+        tableContainer.add(scroll, BorderLayout.CENTER);
+
+        panel.add(topSection, BorderLayout.NORTH);
+        panel.add(tableContainer, BorderLayout.CENTER);
         return panel;
     }
 
@@ -3368,32 +3536,303 @@ public class MainFrame extends JFrame {
     }
 
     private void loadReportsDataAsync() {
+        String filter = cmbReportPeriodFilter != null ? (String) cmbReportPeriodFilter.getSelectedItem() : "📅 Este Mes";
+        LocalDate today = LocalDate.now();
+        final LocalDate fromDate;
+        final LocalDate toDate;
+
+        if (filter != null && filter.contains("Hoy")) {
+            fromDate = today;
+            toDate = today;
+        } else if (filter != null && filter.contains("Ayer")) {
+            fromDate = today.minusDays(1);
+            toDate = today.minusDays(1);
+        } else if (filter != null && filter.contains("Esta Semana")) {
+            fromDate = today.with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY));
+            toDate = today.with(java.time.temporal.TemporalAdjusters.nextOrSame(java.time.DayOfWeek.SUNDAY));
+        } else if (filter != null && filter.contains("Últimos 30 Días")) {
+            fromDate = today.minusDays(29);
+            toDate = today;
+        } else if (filter != null && filter.contains("Todo el Historial")) {
+            fromDate = today.minusYears(5);
+            toDate = today;
+        } else {
+            // "Este Mes" por defecto
+            fromDate = today.withDayOfMonth(1);
+            toDate = today.withDayOfMonth(today.lengthOfMonth());
+        }
+
         new SwingWorker<List<FinancialReportDTO>, Void>() {
             @Override
             protected List<FinancialReportDTO> doInBackground() {
-                return reportController.getLast30DaysDailyReport();
+                return reportController.getDailyReport(fromDate, toDate);
             }
+
             @Override
             protected void done() {
                 try {
                     List<FinancialReportDTO> list = get();
-                    if (dailyReportsModel == null) return;
-                    dailyReportsModel.setRowCount(0);
-                    for (FinancialReportDTO r : list) {
-                        dailyReportsModel.addRow(new Object[]{
-                                r.getPeriodLabel(),
-                                r.getTotalWashes(),
-                                r.getCarsCount(),
-                                r.getMotosCount(),
-                                CURRENCY_FMT.format(r.getGrossIncome()),
-                                CURRENCY_FMT.format(r.getTotalCommissions()),
-                                CURRENCY_FMT.format(r.getCashPayoutsDisbursed()),
-                                CURRENCY_FMT.format(r.getNetProfit())
-                        });
-                    }
+                    if (list == null) list = new ArrayList<>();
+                    updateFinancialReportsView(list);
                 } catch (Exception ignored) {}
             }
         }.execute();
+    }
+
+    private void updateFinancialReportsView(List<FinancialReportDTO> list) {
+        if (dailyReportsModel == null) return;
+        dailyReportsModel.setRowCount(0);
+
+        int totalWashes = 0;
+        BigDecimal grossIncome = BigDecimal.ZERO;
+        BigDecimal commissions = BigDecimal.ZERO;
+        BigDecimal disbursed = BigDecimal.ZERO;
+        BigDecimal netProfit = BigDecimal.ZERO;
+        Map<String, BigDecimal> vehicleIncomeTotals = new LinkedHashMap<>();
+        Map<String, Integer> vehicleCountTotals = new LinkedHashMap<>();
+
+        // Llenar tabla cronológica
+        for (FinancialReportDTO r : list) {
+            totalWashes += r.getTotalWashes();
+            grossIncome = grossIncome.add(r.getGrossIncome());
+            commissions = commissions.add(r.getTotalCommissions());
+            disbursed = disbursed.add(r.getCashPayoutsDisbursed());
+            netProfit = netProfit.add(r.getNetProfit());
+
+            // Acumular por vehículo
+            if (r.getIncomeByVehicle() != null) {
+                for (Map.Entry<String, BigDecimal> e : r.getIncomeByVehicle().entrySet()) {
+                    vehicleIncomeTotals.put(e.getKey(), vehicleIncomeTotals.getOrDefault(e.getKey(), BigDecimal.ZERO).add(e.getValue()));
+                }
+            }
+            if (r.getCountByVehicle() != null) {
+                for (Map.Entry<String, Integer> e : r.getCountByVehicle().entrySet()) {
+                    vehicleCountTotals.put(e.getKey(), vehicleCountTotals.getOrDefault(e.getKey(), 0) + e.getValue());
+                }
+            }
+
+            BigDecimal rowMargin = r.getGrossIncome().signum() > 0
+                    ? r.getNetProfit().multiply(new BigDecimal("100")).divide(r.getGrossIncome(), 1, RoundingMode.HALF_UP)
+                    : BigDecimal.ZERO;
+
+            dailyReportsModel.addRow(new Object[]{
+                    r.getPeriodLabel(),
+                    r.getTotalWashes(),
+                    CURRENCY_FMT.format(r.getGrossIncome()),
+                    CURRENCY_FMT.format(r.getTotalCommissions()),
+                    CURRENCY_FMT.format(r.getCashPayoutsDisbursed()),
+                    CURRENCY_FMT.format(r.getNetProfit()),
+                    rowMargin.toPlainString() + "%"
+            });
+        }
+
+        // Fila destacada de consolidado total
+        BigDecimal globalMargin = grossIncome.signum() > 0
+                ? netProfit.multiply(new BigDecimal("100")).divide(grossIncome, 1, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
+        BigDecimal avgTicket = totalWashes > 0
+                ? grossIncome.divide(BigDecimal.valueOf(totalWashes), 0, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
+
+        if (!list.isEmpty()) {
+            dailyReportsModel.addRow(new Object[]{
+                    "★ TOTALES CONSOLIDADOS",
+                    totalWashes,
+                    CURRENCY_FMT.format(grossIncome),
+                    CURRENCY_FMT.format(commissions),
+                    CURRENCY_FMT.format(disbursed),
+                    CURRENCY_FMT.format(netProfit),
+                    globalMargin.toPlainString() + "%"
+            });
+        }
+
+        // Actualizar KPIs superiores
+        if (repKpiIncomeTotal != null) repKpiIncomeTotal.setText(CURRENCY_FMT.format(grossIncome));
+        if (repKpiIncomeSub != null) repKpiIncomeSub.setText(totalWashes + " servicio" + (totalWashes == 1 ? "" : "s") + " facturados");
+
+        if (repKpiCommissionsTotal != null) repKpiCommissionsTotal.setText(CURRENCY_FMT.format(commissions));
+        if (repKpiCommissionsSub != null) repKpiCommissionsSub.setText("Desembolsado: " + CURRENCY_FMT.format(disbursed));
+
+        if (repKpiProfitTotal != null) repKpiProfitTotal.setText(CURRENCY_FMT.format(netProfit));
+        if (repKpiProfitSub != null) repKpiProfitSub.setText("Ganancia libre para el dueño");
+
+        if (repKpiMarginTotal != null) repKpiMarginTotal.setText(globalMargin.toPlainString() + "%");
+        if (repKpiMarginSub != null) repKpiMarginSub.setText(grossIncome.signum() > 0 ? "Rentabilidad neta del lavadero" : "Sin ventas en período");
+
+        if (repKpiTicketAvg != null) repKpiTicketAvg.setText(CURRENCY_FMT.format(avgTicket));
+        if (repKpiTicketSub != null) repKpiTicketSub.setText("Ingreso promedio por vehículo");
+
+        if (repTableSummaryLabel != null) {
+            repTableSummaryLabel.setText("Total Facturado: " + CURRENCY_FMT.format(grossIncome) + " | Utilidad: " + CURRENCY_FMT.format(netProfit));
+        }
+
+        // Renderizar Gráfica A: Tendencia Temporal (Barras duales)
+        renderTrendChart(list);
+
+        // Renderizar Gráfica B: Rendimiento por Tipo de Vehículo
+        renderVehicleChart(vehicleIncomeTotals, vehicleCountTotals, grossIncome);
+    }
+
+    private void renderTrendChart(List<FinancialReportDTO> list) {
+        if (repChartTrendPanel == null) return;
+        repChartTrendPanel.removeAll();
+
+        if (list == null || list.isEmpty()) {
+            JLabel empty = new JLabel("No hay datos registrados en el período seleccionado.", SwingConstants.CENTER);
+            empty.setFont(new Font("Segoe UI", Font.ITALIC, 12));
+            empty.setForeground(MUTED);
+            repChartTrendPanel.add(empty, BorderLayout.CENTER);
+            repChartTrendPanel.revalidate();
+            repChartTrendPanel.repaint();
+            return;
+        }
+
+        // Encontrar maximo para escalar barras
+        BigDecimal maxVal = BigDecimal.ONE;
+        for (FinancialReportDTO r : list) {
+            if (r.getGrossIncome().compareTo(maxVal) > 0) maxVal = r.getGrossIncome();
+            if (r.getNetProfit().compareTo(maxVal) > 0) maxVal = r.getNetProfit();
+        }
+        final BigDecimal scaleMax = maxVal;
+
+        JPanel barsBox = new JPanel(new GridLayout(1, Math.min(list.size(), 14), 8, 0));
+        barsBox.setOpaque(false);
+        barsBox.setBorder(BorderFactory.createEmptyBorder(10, 8, 4, 8));
+
+        // Mostrar hasta los últimos 14 registros para que no se aprieten
+        int startIdx = Math.max(0, list.size() - 14);
+        for (int i = startIdx; i < list.size(); i++) {
+            FinancialReportDTO r = list.get(i);
+            final BigDecimal income = r.getGrossIncome();
+            final BigDecimal profit = r.getNetProfit();
+
+            JPanel col = new JPanel(new BorderLayout(0, 4));
+            col.setOpaque(false);
+
+            JPanel barCanvas = new JPanel() {
+                @Override
+                protected void paintComponent(Graphics g) {
+                    super.paintComponent(g);
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    int h = getHeight() - 10;
+                    int w = getWidth();
+                    int barWidth = Math.max(6, (w / 2) - 4);
+
+                    int hIncome = scaleMax.signum() > 0 ? (int) ((income.doubleValue() / scaleMax.doubleValue()) * h) : 0;
+                    int hProfit = scaleMax.signum() > 0 ? (int) ((profit.doubleValue() / scaleMax.doubleValue()) * h) : 0;
+                    if (hIncome < 3 && income.signum() > 0) hIncome = 3;
+                    if (hProfit < 3 && profit.signum() > 0) hProfit = 3;
+
+                    // Barra Facturación (Azul)
+                    g2.setColor(PRIMARY);
+                    g2.fillRoundRect(w / 2 - barWidth - 2, h - hIncome, barWidth, hIncome, 4, 4);
+
+                    // Barra Ganancia Neta (Verde)
+                    g2.setColor(GREEN);
+                    g2.fillRoundRect(w / 2 + 2, h - hProfit, barWidth, hProfit, 4, 4);
+
+                    g2.dispose();
+                }
+            };
+            barCanvas.setOpaque(false);
+
+            String shortLabel = r.getPeriod();
+            if (shortLabel != null && shortLabel.length() >= 5) {
+                shortLabel = shortLabel.substring(5); // Ej: 11-10
+            }
+            JLabel lblDate = new JLabel(shortLabel != null ? shortLabel : "-", SwingConstants.CENTER);
+            lblDate.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+            lblDate.setForeground(MUTED);
+
+            col.add(barCanvas, BorderLayout.CENTER);
+            col.add(lblDate, BorderLayout.SOUTH);
+            barsBox.add(col);
+        }
+
+        repChartTrendPanel.add(barsBox, BorderLayout.CENTER);
+        repChartTrendPanel.revalidate();
+        repChartTrendPanel.repaint();
+    }
+
+    private void renderVehicleChart(Map<String, BigDecimal> vehicleIncomeTotals, Map<String, Integer> vehicleCountTotals, BigDecimal grossIncome) {
+        if (repChartVehiclePanel == null) return;
+        repChartVehiclePanel.removeAll();
+
+        if (vehicleIncomeTotals == null || vehicleIncomeTotals.isEmpty() || grossIncome.signum() == 0) {
+            JLabel empty = new JLabel("Sin servicios registrados en el período.", SwingConstants.CENTER);
+            empty.setFont(new Font("Segoe UI", Font.ITALIC, 12));
+            empty.setForeground(MUTED);
+            empty.setAlignmentX(Component.CENTER_ALIGNMENT);
+            repChartVehiclePanel.add(Box.createVerticalGlue());
+            repChartVehiclePanel.add(empty);
+            repChartVehiclePanel.add(Box.createVerticalGlue());
+            repChartVehiclePanel.revalidate();
+            repChartVehiclePanel.repaint();
+            return;
+        }
+
+        repChartVehiclePanel.setBorder(BorderFactory.createEmptyBorder(8, 6, 8, 6));
+
+        Color[] colors = {PRIMARY, new Color(16, 185, 129), new Color(245, 158, 11), new Color(139, 92, 246), new Color(236, 72, 153)};
+        int cIdx = 0;
+
+        for (Map.Entry<String, BigDecimal> entry : vehicleIncomeTotals.entrySet()) {
+            String vName = entry.getKey();
+            BigDecimal vIncome = entry.getValue();
+            int count = vehicleCountTotals.getOrDefault(vName, 0);
+            double pct = grossIncome.signum() > 0 ? (vIncome.doubleValue() / grossIncome.doubleValue()) * 100.0 : 0.0;
+            final Color barColor = colors[cIdx % colors.length];
+            cIdx++;
+
+            JPanel row = new JPanel(new BorderLayout(8, 2));
+            row.setOpaque(false);
+            row.setMaximumSize(new Dimension(800, 36));
+
+            JPanel labels = new JPanel(new BorderLayout());
+            labels.setOpaque(false);
+
+            JLabel lblName = new JLabel("🚗 " + vName + " (" + count + " lavados)");
+            lblName.setFont(new Font("Segoe UI", Font.BOLD, 11));
+            lblName.setForeground(TEXT);
+
+            JLabel lblVal = new JLabel(CURRENCY_FMT.format(vIncome) + " (" + String.format(java.util.Locale.US, "%.1f", pct) + "%)");
+            lblVal.setFont(new Font("Segoe UI", Font.BOLD, 11));
+            lblVal.setForeground(barColor);
+
+            labels.add(lblName, BorderLayout.WEST);
+            labels.add(lblVal, BorderLayout.EAST);
+
+            // Barra horizontal de progreso
+            JPanel pBar = new JPanel() {
+                @Override
+                protected void paintComponent(Graphics g) {
+                    super.paintComponent(g);
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    int w = getWidth();
+                    int h = getHeight();
+                    g2.setColor(new Color(240, 243, 250));
+                    g2.fillRoundRect(0, 1, w, h - 2, 4, 4);
+
+                    int fillW = (int) ((pct / 100.0) * w);
+                    if (fillW < 4 && pct > 0) fillW = 4;
+                    g2.setColor(barColor);
+                    g2.fillRoundRect(0, 1, fillW, h - 2, 4, 4);
+                    g2.dispose();
+                }
+            };
+            pBar.setOpaque(false);
+            pBar.setPreferredSize(new Dimension(0, 8));
+
+            row.add(labels, BorderLayout.NORTH);
+            row.add(pBar, BorderLayout.CENTER);
+            repChartVehiclePanel.add(row);
+            repChartVehiclePanel.add(Box.createVerticalStrut(6));
+        }
+
+        repChartVehiclePanel.revalidate();
+        repChartVehiclePanel.repaint();
     }
 
     private void filterBySearch(String query) {
