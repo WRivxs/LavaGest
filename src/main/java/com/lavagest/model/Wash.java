@@ -21,6 +21,7 @@ public class Wash {
     private String notes;
     private Long washTypeId;        // FK a wash_types
     private String washTypeName;    // nombre denormalizado para display
+    private String vehicleCatalogName; // nombre denormalizado del catálogo (ej: Carro, Moto)
     private String clientName;      // nombre del cliente
     private String clientPhone;     // teléfono del cliente (opcional)
     private Long createdByUserId;   // FK a users (quien registró el lavado)
@@ -126,6 +127,9 @@ public class Wash {
 
     public String getWashTypeName() { return washTypeName; }
     public void setWashTypeName(String washTypeName) { this.washTypeName = washTypeName; }
+
+    public String getVehicleCatalogName() { return vehicleCatalogName; }
+    public void setVehicleCatalogName(String vehicleCatalogName) { this.vehicleCatalogName = vehicleCatalogName; }
 
     public String getClientName() { return clientName; }
     public void setClientName(String clientName) { this.clientName = clientName; }

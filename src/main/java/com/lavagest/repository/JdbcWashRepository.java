@@ -21,7 +21,10 @@ import java.util.List;
  * Implementación JDBC de WashRepository para Supabase PostgreSQL.
  */
 public class JdbcWashRepository implements WashRepository {
-    private static final String BASE_SELECT = "SELECT w.*, wt.name AS wash_type_name FROM washes w LEFT JOIN wash_types wt ON w.wash_type_id = wt.id";
+    private static final String BASE_SELECT = "SELECT w.*, wt.name AS wash_type_name, vtc.name AS vehicle_catalog_name " +
+            "FROM washes w " +
+            "LEFT JOIN wash_types wt ON w.wash_type_id = wt.id " +
+            "LEFT JOIN vehicle_types_catalog vtc ON wt.vehicle_type_catalog_id = vtc.id";
     private final DatabaseConfig dbConfig;
 
     public JdbcWashRepository(DatabaseConfig dbConfig) {
@@ -296,6 +299,9 @@ public class JdbcWashRepository implements WashRepository {
         }
         try {
             wash.setWashTypeName(rs.getString("wash_type_name"));
+        } catch (SQLException ignored) {}
+        try {
+            wash.setVehicleCatalogName(rs.getString("vehicle_catalog_name"));
         } catch (SQLException ignored) {}
         try {
             wash.setClientName(rs.getString("client_name"));

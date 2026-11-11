@@ -142,9 +142,14 @@ public class ReportService {
             commissions = commissions.add(w.getWorkerPayment());
             netProfit = netProfit.add(w.getProfit());
 
-            String vName = w.getVehicleModel() != null && !w.getVehicleModel().trim().isEmpty() 
-                    ? w.getVehicleModel().trim() 
-                    : (w.getVehicleType() != null ? w.getVehicleType().getLabel() : "Otro");
+            // Nombre del tipo de vehículo: Catálogo > vehicleType (Carro/Moto) > vehicleModel > "Otro"
+            String vName = w.getVehicleCatalogName() != null && !w.getVehicleCatalogName().trim().isEmpty()
+                    ? w.getVehicleCatalogName().trim()
+                    : (w.getVehicleType() != null
+                            ? w.getVehicleType().getLabel()
+                            : (w.getVehicleModel() != null && !w.getVehicleModel().trim().isEmpty()
+                                    ? w.getVehicleModel().trim()
+                                    : "Otro"));
             incomeByVeh.put(vName, incomeByVeh.getOrDefault(vName, BigDecimal.ZERO).add(w.getPrice()));
             countByVeh.put(vName, countByVeh.getOrDefault(vName, 0) + 1);
 
