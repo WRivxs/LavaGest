@@ -39,15 +39,36 @@ public class AuthService {
         return user;
     }
 
-    /** Crea un nuevo usuario (usado por admin) */
+    /** Crea un nuevo usuario básico */
     public AppUser createUser(String username, String password, Role role, Long workerId) {
+        return createUser(username, password, role, workerId, null, null);
+    }
+
+    /** Crea un nuevo usuario completo con nombre y teléfono */
+    public AppUser createUser(String username, String password, Role role, Long workerId, String fullName, String phone) {
         AppUser u = new AppUser();
         u.setUsername(username);
+        u.setFullName(fullName != null && !fullName.trim().isEmpty() ? fullName.trim() : null);
+        u.setPhone(phone != null && !phone.trim().isEmpty() ? phone.trim() : null);
         u.setPasswordHash(hashPassword(password));
         u.setRole(role);
         u.setWorkerId(workerId);
         u.setActive(true);
         return userRepository.save(u);
+    }
+
+    /** Actualiza datos de un usuario y opcionalmente su contraseña */
+    public boolean updateUser(Long id, String username, String fullName, String phone, Role role, String newPassword) {
+        AppUser existing = userRepository.findById(id);
+        if (existing == null) return false;
+        existing.setUsername(username);
+        existing.setFullName(fullName != null && !fullName.trim().isEmpty() ? fullName.trim() : null);
+        existing.setPhone(phone != null && !phone.trim().isEmpty() ? phone.trim() : null);
+        if (role != null) existing.setRole(role);
+        if (newPassword != null && !newPassword.trim().isEmpty()) {
+            existing.setPasswordHash(hashPassword(newPassword.trim()));
+        }
+        return userRepository.update(existing);
     }
 
     /** Lista todos los usuarios */
@@ -58,5 +79,10 @@ public class AuthService {
     /** Desactiva un usuario */
     public boolean deleteUser(Long id) {
         return userRepository.delete(id);
+    }
+
+    /** Activa un usuario */
+    public boolean activateUser(Long id) {
+        return userRepository.activate(id);
     }
 }

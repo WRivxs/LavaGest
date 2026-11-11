@@ -70,4 +70,15 @@ public class InMemoryUserRepository implements UserRepository {
         }
         return false;
     }
+
+    @Override
+    public boolean activate(Long id) {
+        for (AppUser u : store) {
+            if (u.getId().equals(id)) {
+                u.setActive(true);
+                return true;
+            }
+        }
+        return false;
+    }
 }

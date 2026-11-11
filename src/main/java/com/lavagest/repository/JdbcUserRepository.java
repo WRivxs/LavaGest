@@ -24,8 +24,8 @@ public class JdbcUserRepository implements UserRepository {
 
     @Override
     public AppUser save(AppUser user) {
-        String sql = "INSERT INTO app_users (username, password_hash, role, worker_id, active) " +
-                     "VALUES (?, ?, ?, ?, ?) RETURNING id";
+        String sql = "INSERT INTO app_users (username, password_hash, role, worker_id, active, full_name, phone) " +
+                     "VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id";
         try (Connection conn = dbConfig.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, user.getUsername());
@@ -37,6 +37,8 @@ public class JdbcUserRepository implements UserRepository {
                 ps.setNull(4, Types.BIGINT);
             }
             ps.setBoolean(5, user.isActive());
+            ps.setString(6, user.getFullName());
+            ps.setString(7, user.getPhone());
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
                     user.setId(rs.getLong("id"));
@@ -100,7 +102,7 @@ public class JdbcUserRepository implements UserRepository {
 
     @Override
     public boolean update(AppUser user) {
-        String sql = "UPDATE app_users SET username=?, role=?, worker_id=?, active=? WHERE id=?";
+        String sql = "UPDATE app_users SET username=?, role=?, worker_id=?, active=?, full_name=?, phone=?, password_hash=? WHERE id=?";
         try (Connection conn = dbConfig.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, user.getUsername());
@@ -111,7 +113,10 @@ public class JdbcUserRepository implements UserRepository {
                 ps.setNull(3, Types.BIGINT);
             }
             ps.setBoolean(4, user.isActive());
-            ps.setLong(5, user.getId());
+            ps.setString(5, user.getFullName());
+            ps.setString(6, user.getPhone());
+            ps.setString(7, user.getPasswordHash());
+            ps.setLong(8, user.getId());
             return ps.executeUpdate() > 0;
         } catch (SQLException e) {
             throw new RuntimeException("Error actualizando usuario: " + e.getMessage(), e);
@@ -130,10 +135,24 @@ public class JdbcUserRepository implements UserRepository {
         }
     }
 
+    @Override
+    public boolean activate(Long id) {
+        String sql = "UPDATE app_users SET active = true WHERE id = ?";
+        try (Connection conn = dbConfig.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, id);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            throw new RuntimeException("Error activando usuario: " + e.getMessage(), e);
+        }
+    }
+
     private AppUser mapRow(ResultSet rs) throws SQLException {
         AppUser u = new AppUser();
         u.setId(rs.getLong("id"));
         u.setUsername(rs.getString("username"));
+        u.setFullName(rs.getString("full_name"));
+        u.setPhone(rs.getString("phone"));
         u.setPasswordHash(rs.getString("password_hash"));
         u.setRole(Role.fromLabel(rs.getString("role")));
         long workerId = rs.getLong("worker_id");

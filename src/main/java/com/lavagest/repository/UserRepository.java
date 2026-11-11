@@ -10,4 +10,5 @@ public interface UserRepository {
     List<AppUser> findAll();
     boolean update(AppUser user);
     boolean delete(Long id);
+    boolean activate(Long id);
 }

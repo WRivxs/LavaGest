@@ -72,12 +72,18 @@ import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.DayOfWeek;
+import java.time.temporal.TemporalAdjusters;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import com.lavagest.service.DashboardService;
 
 import com.lavagest.model.AppUser;
@@ -164,6 +170,24 @@ public class MainFrame extends JFrame {
     private JComboBox<VehicleTypeCatalog> cmbCatalogVehicles;
     private List<VehicleTypeCatalog> adminVehiclesList = new ArrayList<VehicleTypeCatalog>();
     private List<WashType> adminWashTypesList = new ArrayList<WashType>();
+
+    // Filtros Historial Admin
+    private JComboBox<String> cmbHistoryDateFilter;
+    private JTextField txtSearchHistory;
+    private JLabel lblHistoryCount;
+    private JLabel lblHistoryTotal;
+    private List<WashTableRowDTO> currentLoadedHistory = new ArrayList<WashTableRowDTO>();
+
+    // Filtros Liquidación Admin
+    private JComboBox<String> cmbPayoutDateFilterAdmin;
+    private JTextField txtSearchPayoutsAdmin;
+    private JLabel lblTotalPayoutsAdmin;
+    private JLabel lblCountPayoutsAdmin;
+    private List<WorkerPayout> currentLoadedPayoutsAdmin = new ArrayList<WorkerPayout>();
+
+    // Usuarios Admin
+    private List<AppUser> allUsersList = new ArrayList<AppUser>();
+    private JTable usersTable;
 
     // Modal Nuevo Lavado
     private VehicleType selectedVehicleType = VehicleType.CARRO;
@@ -1183,24 +1207,131 @@ public class MainFrame extends JFrame {
 
         JPanel header = new JPanel(new BorderLayout());
         header.setOpaque(false);
-        header.setBorder(BorderFactory.createEmptyBorder(0, 0, 12, 0));
+        header.setBorder(BorderFactory.createEmptyBorder(0, 0, 10, 0));
 
         JLabel title = new JLabel("Historial General de Lavados");
         title.setFont(new Font("SansSerif", Font.BOLD, 18));
         title.setForeground(TEXT);
 
-        header.add(title, BorderLayout.WEST);
+        JPanel headerRight = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        headerRight.setOpaque(false);
 
-        String[] cols = {"FECHA", "HORA", "PLACA", "TIPO", "MODELO", "OPERADOR", "PRECIO", "PAGO TRAB.", "GANANCIA", "ESTADO"};
+        lblHistoryCount = new JLabel("0 lavados");
+        lblHistoryCount.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        lblHistoryCount.setForeground(new Color(24, 119, 242));
+
+        lblHistoryTotal = new JLabel("Total: $ 0");
+        lblHistoryTotal.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        lblHistoryTotal.setForeground(new Color(22, 101, 52));
+
+        JButton btnRefreshHistory = new JButton("↻ Actualizar");
+        btnRefreshHistory.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        btnRefreshHistory.addActionListener(e -> loadHistoryDataAsync());
+
+        headerRight.add(lblHistoryCount);
+        headerRight.add(new JLabel(" | "));
+        headerRight.add(lblHistoryTotal);
+        headerRight.add(Box.createHorizontalStrut(10));
+        headerRight.add(btnRefreshHistory);
+
+        header.add(title, BorderLayout.WEST);
+        header.add(headerRight, BorderLayout.EAST);
+
+        // Barra de Filtros
+        JPanel filterBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 8));
+        filterBar.setBackground(SURFACE);
+        filterBar.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(BORDER, 1),
+                BorderFactory.createEmptyBorder(6, 12, 6, 12)));
+
+        JLabel lblFiltro = new JLabel("📅 Período:");
+        lblFiltro.setFont(new Font("Segoe UI", Font.BOLD, 12));
+
+        cmbHistoryDateFilter = new JComboBox<String>(new String[]{
+                "📅 Hoy",
+                "📅 Ayer",
+                "📅 Esta Semana",
+                "📅 Este Mes",
+                "📅 Todos los Registros"
+        });
+        cmbHistoryDateFilter.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        cmbHistoryDateFilter.setPreferredSize(new Dimension(175, 30));
+        cmbHistoryDateFilter.addActionListener(e -> loadHistoryDataAsync());
+
+        JLabel lblBuscar = new JLabel("🔍 Buscar:");
+        lblBuscar.setFont(new Font("Segoe UI", Font.BOLD, 12));
+
+        txtSearchHistory = new JTextField();
+        txtSearchHistory.setPreferredSize(new Dimension(240, 30));
+        txtSearchHistory.putClientProperty("JTextField.placeholderText", "Placa, cliente, teléfono u operador...");
+        txtSearchHistory.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { filterHistoryTableLocal(); }
+            public void removeUpdate(DocumentEvent e) { filterHistoryTableLocal(); }
+            public void changedUpdate(DocumentEvent e) { filterHistoryTableLocal(); }
+        });
+
+        JButton btnClearSearch = new JButton("✕");
+        btnClearSearch.setToolTipText("Limpiar búsqueda");
+        btnClearSearch.addActionListener(e -> txtSearchHistory.setText(""));
+
+        filterBar.add(lblFiltro);
+        filterBar.add(cmbHistoryDateFilter);
+        filterBar.add(Box.createHorizontalStrut(12));
+        filterBar.add(lblBuscar);
+        filterBar.add(txtSearchHistory);
+        filterBar.add(btnClearSearch);
+
+        JPanel topContainer = new JPanel();
+        topContainer.setOpaque(false);
+        topContainer.setLayout(new BoxLayout(topContainer, BoxLayout.Y_AXIS));
+        topContainer.add(header);
+        topContainer.add(filterBar);
+        topContainer.add(Box.createVerticalStrut(10));
+
+        String[] cols = {"#", "FECHA", "HORA", "CLIENTE", "TELÉFONO", "PLACA", "TIPO VEHÍCULO", "TIPO LAVADO", "OPERADOR", "PRECIO", "ESTADO"};
         allWashesModel = new DefaultTableModel(cols, 0) {
             @Override
             public boolean isCellEditable(int row, int col) { return false; }
         };
         JTable table = createStyledTable(allWashesModel);
+
+        DefaultTableCellRenderer center = new DefaultTableCellRenderer();
+        center.setHorizontalAlignment(SwingConstants.CENTER);
+
+        DefaultTableCellRenderer right = new DefaultTableCellRenderer();
+        right.setHorizontalAlignment(SwingConstants.RIGHT);
+
+        DefaultTableCellRenderer statusRenderer = new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable tbl, Object value, boolean isSelected, boolean hasFocus, int row, int col) {
+                JLabel l = (JLabel) super.getTableCellRendererComponent(tbl, value, isSelected, hasFocus, row, col);
+                l.setHorizontalAlignment(SwingConstants.CENTER);
+                l.setFont(new Font("Segoe UI", Font.BOLD, 11));
+                if (!isSelected) {
+                    String val = value != null ? value.toString() : "";
+                    if ("Liquidado".equalsIgnoreCase(val) || "Pagado".equalsIgnoreCase(val)) {
+                        l.setForeground(new Color(22, 101, 52));
+                    } else {
+                        l.setForeground(new Color(180, 83, 9));
+                    }
+                }
+                return l;
+            }
+        };
+
+        table.getColumnModel().getColumn(0).setCellRenderer(center);
+        table.getColumnModel().getColumn(1).setCellRenderer(center);
+        table.getColumnModel().getColumn(2).setCellRenderer(center);
+        table.getColumnModel().getColumn(4).setCellRenderer(center);
+        table.getColumnModel().getColumn(5).setCellRenderer(center);
+        table.getColumnModel().getColumn(6).setCellRenderer(center);
+        table.getColumnModel().getColumn(9).setCellRenderer(right);
+        table.getColumnModel().getColumn(10).setCellRenderer(statusRenderer);
+
         JScrollPane scroll = new JScrollPane(table);
         scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
 
-        panel.add(header, BorderLayout.NORTH);
+        panel.add(topContainer, BorderLayout.NORTH);
         panel.add(scroll, BorderLayout.CENTER);
         return panel;
     }
@@ -1212,28 +1343,116 @@ public class MainFrame extends JFrame {
 
         JPanel header = new JPanel(new BorderLayout());
         header.setOpaque(false);
-        header.setBorder(BorderFactory.createEmptyBorder(0, 0, 12, 0));
+        header.setBorder(BorderFactory.createEmptyBorder(0, 0, 10, 0));
 
         JLabel title = new JLabel("Liquidación de Comisiones y Desembolsos");
         title.setFont(new Font("SansSerif", Font.BOLD, 18));
         title.setForeground(TEXT);
 
+        JPanel headerRight = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        headerRight.setOpaque(false);
+
+        lblCountPayoutsAdmin = new JLabel("0 pagos");
+        lblCountPayoutsAdmin.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        lblCountPayoutsAdmin.setForeground(new Color(24, 119, 242));
+
+        lblTotalPayoutsAdmin = new JLabel("Total: $ 0");
+        lblTotalPayoutsAdmin.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        lblTotalPayoutsAdmin.setForeground(new Color(180, 83, 9));
+
         JButton btnPayout = createPrimaryButton("💵 Liquidar Turno a Operador", 34);
         btnPayout.addActionListener(e -> showPayoutDialog());
 
-        header.add(title, BorderLayout.WEST);
-        header.add(btnPayout, BorderLayout.EAST);
+        JButton btnRefreshPayouts = new JButton("↻ Actualizar");
+        btnRefreshPayouts.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        btnRefreshPayouts.addActionListener(e -> loadPayoutsDataAsync());
 
-        String[] cols = {"ID PAGO", "FECHA", "HORA", "OPERADOR", "MONTO LIQUIDADO", "MÉTODO PAGO", "ESTADO", "NOTAS"};
+        headerRight.add(lblCountPayoutsAdmin);
+        headerRight.add(new JLabel(" | "));
+        headerRight.add(lblTotalPayoutsAdmin);
+        headerRight.add(Box.createHorizontalStrut(10));
+        headerRight.add(btnPayout);
+        headerRight.add(btnRefreshPayouts);
+
+        header.add(title, BorderLayout.WEST);
+        header.add(headerRight, BorderLayout.EAST);
+
+        // Barra de Filtros
+        JPanel filterBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 8));
+        filterBar.setBackground(SURFACE);
+        filterBar.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(BORDER, 1),
+                BorderFactory.createEmptyBorder(6, 12, 6, 12)));
+
+        JLabel lblFiltro = new JLabel("📅 Período:");
+        lblFiltro.setFont(new Font("Segoe UI", Font.BOLD, 12));
+
+        cmbPayoutDateFilterAdmin = new JComboBox<String>(new String[]{
+                "📅 Hoy",
+                "📅 Ayer",
+                "📅 Esta Semana",
+                "📅 Este Mes",
+                "📅 Todos los Registros"
+        });
+        cmbPayoutDateFilterAdmin.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        cmbPayoutDateFilterAdmin.setPreferredSize(new Dimension(175, 30));
+        cmbPayoutDateFilterAdmin.addActionListener(e -> loadPayoutsDataAsync());
+
+        JLabel lblBuscar = new JLabel("🔍 Buscar:");
+        lblBuscar.setFont(new Font("Segoe UI", Font.BOLD, 12));
+
+        txtSearchPayoutsAdmin = new JTextField();
+        txtSearchPayoutsAdmin.setPreferredSize(new Dimension(220, 30));
+        txtSearchPayoutsAdmin.putClientProperty("JTextField.placeholderText", "Operador, método o notas...");
+        txtSearchPayoutsAdmin.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { filterPayoutsTableLocal(); }
+            public void removeUpdate(DocumentEvent e) { filterPayoutsTableLocal(); }
+            public void changedUpdate(DocumentEvent e) { filterPayoutsTableLocal(); }
+        });
+
+        JButton btnClearSearch = new JButton("✕");
+        btnClearSearch.setToolTipText("Limpiar búsqueda");
+        btnClearSearch.addActionListener(e -> txtSearchPayoutsAdmin.setText(""));
+
+        filterBar.add(lblFiltro);
+        filterBar.add(cmbPayoutDateFilterAdmin);
+        filterBar.add(Box.createHorizontalStrut(12));
+        filterBar.add(lblBuscar);
+        filterBar.add(txtSearchPayoutsAdmin);
+        filterBar.add(btnClearSearch);
+
+        JPanel topContainer = new JPanel();
+        topContainer.setOpaque(false);
+        topContainer.setLayout(new BoxLayout(topContainer, BoxLayout.Y_AXIS));
+        topContainer.add(header);
+        topContainer.add(filterBar);
+        topContainer.add(Box.createVerticalStrut(10));
+
+        String[] cols = {"#", "ID PAGO", "FECHA", "HORA", "OPERADOR", "MONTO LIQUIDADO", "MÉTODO PAGO", "ESTADO", "NOTAS"};
         payoutsTableModel = new DefaultTableModel(cols, 0) {
             @Override
             public boolean isCellEditable(int row, int col) { return false; }
         };
         JTable table = createStyledTable(payoutsTableModel);
+
+        DefaultTableCellRenderer center = new DefaultTableCellRenderer();
+        center.setHorizontalAlignment(SwingConstants.CENTER);
+
+        DefaultTableCellRenderer right = new DefaultTableCellRenderer();
+        right.setHorizontalAlignment(SwingConstants.RIGHT);
+
+        table.getColumnModel().getColumn(0).setCellRenderer(center);
+        table.getColumnModel().getColumn(1).setCellRenderer(center);
+        table.getColumnModel().getColumn(2).setCellRenderer(center);
+        table.getColumnModel().getColumn(3).setCellRenderer(center);
+        table.getColumnModel().getColumn(5).setCellRenderer(right);
+        table.getColumnModel().getColumn(6).setCellRenderer(center);
+        table.getColumnModel().getColumn(7).setCellRenderer(center);
+
         JScrollPane scroll = new JScrollPane(table);
         scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
 
-        panel.add(header, BorderLayout.NORTH);
+        panel.add(topContainer, BorderLayout.NORTH);
         panel.add(scroll, BorderLayout.CENTER);
         return panel;
     }
@@ -1273,71 +1492,80 @@ public class MainFrame extends JFrame {
         panel.setBackground(BG);
         panel.setBorder(BorderFactory.createEmptyBorder(16, 20, 20, 20));
 
-        JLabel title = new JLabel("Configuración de Tarifas y Comisiones");
+        JLabel title = new JLabel("Configuración General del Sistema");
         title.setFont(new Font("SansSerif", Font.BOLD, 18));
         title.setForeground(TEXT);
         title.setAlignmentX(Component.LEFT_ALIGNMENT);
         panel.add(title);
         panel.add(Box.createVerticalStrut(10));
 
-        JLabel desc = new JLabel("Ajusta los precios base y porcentaje de comisión en cualquier momento:");
+        JLabel desc = new JLabel("Información y enlaces a la gestión operativa del negocio:");
         desc.setFont(new Font("SansSerif", Font.PLAIN, 12));
         desc.setForeground(MUTED);
         desc.setAlignmentX(Component.LEFT_ALIGNMENT);
         panel.add(desc);
         panel.add(Box.createVerticalStrut(16));
 
-        ServiceRate rateCarro = serviceRateRepository.findByVehicleType(VehicleType.CARRO);
-        ServiceRate rateMoto = serviceRateRepository.findByVehicleType(VehicleType.MOTO);
-
-        JPanel formCard = new JPanel(new GridLayout(2, 4, 12, 12));
-        formCard.setBackground(SURFACE);
-        formCard.setBorder(BorderFactory.createCompoundBorder(
+        // Tarjeta informativa de Catálogos y Tarifas
+        JPanel cardCatalogs = new JPanel(new BorderLayout(14, 10));
+        cardCatalogs.setBackground(SURFACE);
+        cardCatalogs.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(BORDER, 1),
-                BorderFactory.createEmptyBorder(14, 14, 14, 14)));
-        formCard.setMaximumSize(new Dimension(720, 110));
-        formCard.setAlignmentX(Component.LEFT_ALIGNMENT);
+                BorderFactory.createEmptyBorder(16, 18, 16, 18)));
+        cardCatalogs.setMaximumSize(new Dimension(800, 120));
+        cardCatalogs.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JTextField txtPriceCarro = new JTextField(rateCarro != null ? rateCarro.getDefaultPrice().toString() : "30000");
-        JTextField txtCommCarro = new JTextField(rateCarro != null ? rateCarro.getCommissionPct().toString() : "40");
-        JTextField txtPriceMoto = new JTextField(rateMoto != null ? rateMoto.getDefaultPrice().toString() : "20000");
-        JTextField txtCommMoto = new JTextField(rateMoto != null ? rateMoto.getCommissionPct().toString() : "40");
+        JPanel catText = new JPanel();
+        catText.setOpaque(false);
+        catText.setLayout(new BoxLayout(catText, BoxLayout.Y_AXIS));
 
-        formCard.add(new JLabel("🚗 Precio Carro ($):"));
-        formCard.add(txtPriceCarro);
-        formCard.add(new JLabel("Comisión Carro (%):"));
-        formCard.add(txtCommCarro);
+        JLabel lblCatTitle = new JLabel("🚗 Tarifas y Precios de Servicios");
+        lblCatTitle.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        lblCatTitle.setForeground(PRIMARY);
 
-        formCard.add(new JLabel("🏍 Precio Moto ($):"));
-        formCard.add(txtPriceMoto);
-        formCard.add(new JLabel("Comisión Moto (%):"));
-        formCard.add(txtCommMoto);
+        JLabel lblCatDesc = new JLabel("<html>Los precios y tarifas de los servicios ahora se gestionan de forma dinámica en la sección<br><b>Tipos de Lavado & Vehículos</b>, donde cada servicio tiene su precio asignado por tipo de vehículo.</html>");
+        lblCatDesc.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        lblCatDesc.setForeground(TEXT);
 
-        panel.add(formCard);
-        panel.add(Box.createVerticalStrut(14));
+        catText.add(lblCatTitle);
+        catText.add(Box.createVerticalStrut(6));
+        catText.add(lblCatDesc);
 
-        JButton btnSaveRates = createPrimaryButton("Guardar Tarifas", 36);
-        btnSaveRates.setAlignmentX(Component.LEFT_ALIGNMENT);
-        btnSaveRates.addActionListener(e -> {
-            try {
-                if (rateCarro != null) {
-                    rateCarro.setDefaultPrice(new BigDecimal(txtPriceCarro.getText().trim()));
-                    rateCarro.setCommissionPct(new BigDecimal(txtCommCarro.getText().trim()));
-                    serviceRateRepository.update(rateCarro);
-                }
-                if (rateMoto != null) {
-                    rateMoto.setDefaultPrice(new BigDecimal(txtPriceMoto.getText().trim()));
-                    rateMoto.setCommissionPct(new BigDecimal(txtCommMoto.getText().trim()));
-                    serviceRateRepository.update(rateMoto);
-                }
-                updateVehicleSelectionUI();
-                updateFormPreview();
-                JOptionPane.showMessageDialog(this, "Tarifas actualizadas correctamente.", "Éxito", JOptionPane.INFORMATION_MESSAGE);
-            } catch (Exception ex) {
-                JOptionPane.showMessageDialog(this, "Error al guardar tarifas: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-            }
-        });
-        panel.add(btnSaveRates);
+        JButton btnGoCatalogs = createPrimaryButton("🚿 Gestionar Catálogos", 34);
+        btnGoCatalogs.addActionListener(e -> showView("catalogs"));
+
+        cardCatalogs.add(catText, BorderLayout.CENTER);
+        cardCatalogs.add(btnGoCatalogs, BorderLayout.EAST);
+        panel.add(cardCatalogs);
+        panel.add(Box.createVerticalStrut(16));
+
+        // Tarjeta de Información del Negocio y Base de Datos
+        JPanel cardSystem = new JPanel(new GridLayout(3, 2, 12, 10));
+        cardSystem.setBackground(SURFACE);
+        cardSystem.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(BORDER, 1),
+                BorderFactory.createEmptyBorder(16, 18, 16, 18)));
+        cardSystem.setMaximumSize(new Dimension(800, 130));
+        cardSystem.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        cardSystem.add(new JLabel("🏷 Software:"));
+        JLabel lblApp = new JLabel("LavaGest PRO v0.1.0");
+        lblApp.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        cardSystem.add(lblApp);
+
+        cardSystem.add(new JLabel("☁️ Base de Datos:"));
+        JLabel lblDb = new JLabel("PostgreSQL en Supabase (Conectado)");
+        lblDb.setForeground(new Color(22, 101, 52));
+        lblDb.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        cardSystem.add(lblDb);
+
+        cardSystem.add(new JLabel("👤 Sesión Actual:"));
+        String userStr = (currentUser != null ? currentUser.getUsername() + " (" + currentUser.getRole() + ")" : "admin (ADMIN)");
+        JLabel lblUser = new JLabel(userStr);
+        lblUser.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        cardSystem.add(lblUser);
+
+        panel.add(cardSystem);
 
         return panel;
     }
@@ -1951,28 +2179,42 @@ public class MainFrame extends JFrame {
         panel.add(header, BorderLayout.NORTH);
 
         // Formulario de creación arriba
-        JPanel formCard = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
+        JPanel formCard = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 8));
         formCard.setBackground(SURFACE);
         formCard.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(BORDER, 1),
                 BorderFactory.createEmptyBorder(8, 12, 8, 12)));
 
-        JTextField txtNewUsername = new JTextField(12);
-        txtNewUsername.putClientProperty("JTextField.placeholderText", "Nombre de usuario");
-        JPasswordField txtNewPassword = new JPasswordField(10);
-        txtNewPassword.putClientProperty("JTextField.placeholderText", "Contraseña");
+        JTextField txtNewFullName = new JTextField(12);
+        txtNewFullName.putClientProperty("JTextField.placeholderText", "Nombre completo");
+
+        JTextField txtNewPhone = new JTextField(9);
+        txtNewPhone.putClientProperty("JTextField.placeholderText", "Teléfono");
+
+        JTextField txtNewUsername = new JTextField(10);
+        txtNewUsername.putClientProperty("JTextField.placeholderText", "Usuario *");
+
+        JPasswordField txtNewPassword = new JPasswordField(9);
+        txtNewPassword.putClientProperty("JTextField.placeholderText", "Contraseña *");
+
         JComboBox<Role> cmbRole = new JComboBox<Role>(new Role[]{Role.ENCARGADO, Role.ADMIN});
         JButton btnCreateUser = createPrimaryButton("＋ Crear Cuenta", 32);
 
+        formCard.add(new JLabel("Nombre:"));
+        formCard.add(txtNewFullName);
+        formCard.add(new JLabel("Teléfono:"));
+        formCard.add(txtNewPhone);
         formCard.add(new JLabel("Usuario:"));
         formCard.add(txtNewUsername);
-        formCard.add(new JLabel("Contraseña:"));
+        formCard.add(new JLabel("Clave:"));
         formCard.add(txtNewPassword);
         formCard.add(new JLabel("Rol:"));
         formCard.add(cmbRole);
         formCard.add(btnCreateUser);
 
         btnCreateUser.addActionListener(e -> {
+            String fullName = txtNewFullName.getText().trim();
+            String phone = txtNewPhone.getText().trim();
             String user = txtNewUsername.getText().trim();
             String pass = new String(txtNewPassword.getPassword()).trim();
             Role role = (Role) cmbRole.getSelectedItem();
@@ -1981,7 +2223,9 @@ public class MainFrame extends JFrame {
                 return;
             }
             try {
-                authController.createUser(user, pass, role, null);
+                authController.createUser(user, pass, role, null, fullName.isEmpty() ? null : fullName, phone.isEmpty() ? null : phone);
+                txtNewFullName.setText("");
+                txtNewPhone.setText("");
                 txtNewUsername.setText("");
                 txtNewPassword.setText("");
                 loadUsersDataAsync();
@@ -1992,13 +2236,57 @@ public class MainFrame extends JFrame {
         });
 
         // Tabla de usuarios
-        String[] cols = {"ID", "USUARIO", "ROL", "ESTADO"};
+        String[] cols = {"ID", "USUARIO", "NOMBRE COMPLETO", "TELÉFONO", "ROL", "ESTADO"};
         usersTableModel = new DefaultTableModel(cols, 0) {
             @Override
             public boolean isCellEditable(int r, int c) { return false; }
         };
-        JTable table = createStyledTable(usersTableModel);
-        JScrollPane scroll = new JScrollPane(table);
+        usersTable = createStyledTable(usersTableModel);
+
+        DefaultTableCellRenderer center = new DefaultTableCellRenderer();
+        center.setHorizontalAlignment(SwingConstants.CENTER);
+
+        DefaultTableCellRenderer userStatusRenderer = new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable tbl, Object value, boolean isSelected, boolean hasFocus, int row, int col) {
+                JLabel l = (JLabel) super.getTableCellRendererComponent(tbl, value, isSelected, hasFocus, row, col);
+                l.setHorizontalAlignment(SwingConstants.CENTER);
+                l.setFont(new Font("Segoe UI", Font.BOLD, 11));
+                if (!isSelected) {
+                    String val = value != null ? value.toString() : "";
+                    if ("Activo".equalsIgnoreCase(val)) {
+                        l.setForeground(new Color(22, 101, 52));
+                    } else {
+                        l.setForeground(new Color(220, 38, 38));
+                    }
+                }
+                return l;
+            }
+        };
+
+        usersTable.getColumnModel().getColumn(0).setPreferredWidth(40);
+        usersTable.getColumnModel().getColumn(1).setPreferredWidth(100);
+        usersTable.getColumnModel().getColumn(2).setPreferredWidth(140);
+        usersTable.getColumnModel().getColumn(3).setPreferredWidth(100);
+        usersTable.getColumnModel().getColumn(4).setPreferredWidth(90);
+        usersTable.getColumnModel().getColumn(5).setPreferredWidth(80);
+
+        usersTable.getColumnModel().getColumn(0).setCellRenderer(center);
+        usersTable.getColumnModel().getColumn(3).setCellRenderer(center);
+        usersTable.getColumnModel().getColumn(4).setCellRenderer(center);
+        usersTable.getColumnModel().getColumn(5).setCellRenderer(userStatusRenderer);
+
+        // Doble clic para editar
+        usersTable.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2 && usersTable.getSelectedRow() >= 0) {
+                    openEditSelectedUser();
+                }
+            }
+        });
+
+        JScrollPane scroll = new JScrollPane(usersTable);
         scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
 
         JPanel centerPanel = new JPanel(new BorderLayout(0, 10));
@@ -2006,29 +2294,190 @@ public class MainFrame extends JFrame {
         centerPanel.add(formCard, BorderLayout.NORTH);
         centerPanel.add(scroll, BorderLayout.CENTER);
 
-        JButton btnDeactivateUser = new JButton("Desactivar Cuenta Seleccionada");
-        btnDeactivateUser.setFont(new Font("SansSerif", Font.PLAIN, 12));
-        btnDeactivateUser.addActionListener(e -> {
-            int row = table.getSelectedRow();
-            if (row < 0) {
-                JOptionPane.showMessageDialog(this, "Selecciona un usuario de la tabla.", "Atención", JOptionPane.WARNING_MESSAGE);
+        // Barra inferior de acciones
+        JPanel bottomBar = new JPanel(new BorderLayout(10, 0));
+        bottomBar.setOpaque(false);
+        bottomBar.setBorder(BorderFactory.createEmptyBorder(6, 4, 6, 4));
+
+        JLabel lblHint = new JLabel("💡 Haz doble clic en un usuario o usa los botones de la derecha para gestionar su cuenta.");
+        lblHint.setFont(new Font("Segoe UI", Font.ITALIC, 11));
+        lblHint.setForeground(MUTED);
+        bottomBar.add(lblHint, BorderLayout.WEST);
+
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        actions.setOpaque(false);
+
+        JButton btnEditUser = new JButton("✏️ Editar Usuario");
+        btnEditUser.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        btnEditUser.addActionListener(e -> openEditSelectedUser());
+
+        JButton btnToggleStatus = new JButton("🔄 Activar / Desactivar");
+        btnToggleStatus.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        btnToggleStatus.addActionListener(e -> toggleSelectedUserStatus());
+
+        actions.add(btnEditUser);
+        actions.add(btnToggleStatus);
+        bottomBar.add(actions, BorderLayout.EAST);
+
+        centerPanel.add(bottomBar, BorderLayout.SOUTH);
+        panel.add(centerPanel, BorderLayout.CENTER);
+        return panel;
+    }
+
+    private void openEditSelectedUser() {
+        if (usersTable == null || usersTable.getSelectedRow() < 0) {
+            JOptionPane.showMessageDialog(this, "Selecciona un usuario de la tabla para editar.", "Atención", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        int row = usersTable.getSelectedRow();
+        Long uId = (Long) usersTableModel.getValueAt(row, 0);
+        AppUser target = null;
+        for (AppUser u : allUsersList) {
+            if (u.getId().equals(uId)) {
+                target = u;
+                break;
+            }
+        }
+        if (target != null) {
+            showEditUserDialog(target);
+        }
+    }
+
+    private void toggleSelectedUserStatus() {
+        if (usersTable == null || usersTable.getSelectedRow() < 0) {
+            JOptionPane.showMessageDialog(this, "Selecciona un usuario de la tabla.", "Atención", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        int row = usersTable.getSelectedRow();
+        Long uId = (Long) usersTableModel.getValueAt(row, 0);
+        AppUser target = null;
+        for (AppUser u : allUsersList) {
+            if (u.getId().equals(uId)) {
+                target = u;
+                break;
+            }
+        }
+        if (target == null) return;
+
+        if (currentUser != null && currentUser.getId().equals(target.getId()) && target.isActive()) {
+            JOptionPane.showMessageDialog(this, "No puedes desactivar tu propia cuenta activa de administrador.", "Operación no permitida", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        if (target.isActive()) {
+            int confirm = JOptionPane.showConfirmDialog(this,
+                    "¿Deseas DESACTIVAR el acceso para el usuario '" + target.getUsername() + "'?",
+                    "Confirmar Desactivación", JOptionPane.YES_NO_OPTION);
+            if (confirm == JOptionPane.YES_OPTION) {
+                authController.deleteUser(target.getId());
+                loadUsersDataAsync();
+            }
+        } else {
+            int confirm = JOptionPane.showConfirmDialog(this,
+                    "¿Deseas ACTIVAR nuevamente el acceso para el usuario '" + target.getUsername() + "'?",
+                    "Confirmar Activación", JOptionPane.YES_NO_OPTION);
+            if (confirm == JOptionPane.YES_OPTION) {
+                authController.activateUser(target.getId());
+                loadUsersDataAsync();
+            }
+        }
+    }
+
+    private void showEditUserDialog(AppUser user) {
+        if (user == null) return;
+        JDialog dialog = new JDialog(this, "Editar Usuario: " + user.getUsername(), true);
+        dialog.setSize(460, 390);
+        dialog.setLocationRelativeTo(this);
+        dialog.setResizable(false);
+
+        JPanel content = new JPanel(new BorderLayout(0, 14));
+        content.setBackground(Color.WHITE);
+        content.setBorder(BorderFactory.createEmptyBorder(18, 22, 18, 22));
+
+        JLabel title = new JLabel("Editar Datos de Acceso y Perfil");
+        title.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        title.setForeground(PRIMARY);
+
+        JPanel form = new JPanel(new GridLayout(5, 2, 10, 10));
+        form.setOpaque(false);
+
+        JTextField txtFullName = new JTextField(user.getFullName() != null ? user.getFullName() : "");
+        txtFullName.putClientProperty("JTextField.placeholderText", "Nombre completo");
+
+        JTextField txtPhone = new JTextField(user.getPhone() != null ? user.getPhone() : "");
+        txtPhone.putClientProperty("JTextField.placeholderText", "Ej: 3001234567");
+
+        JTextField txtUsername = new JTextField(user.getUsername() != null ? user.getUsername() : "");
+
+        JComboBox<Role> cmbRole = new JComboBox<Role>(new Role[]{Role.ENCARGADO, Role.ADMIN});
+        if (user.getRole() != null) cmbRole.setSelectedItem(user.getRole());
+
+        JPasswordField txtPass = new JPasswordField();
+        txtPass.putClientProperty("JTextField.placeholderText", "Nueva contraseña (opcional)");
+
+        form.add(new JLabel("Nombre Completo:"));
+        form.add(txtFullName);
+        form.add(new JLabel("Teléfono:"));
+        form.add(txtPhone);
+        form.add(new JLabel("Nombre de Usuario *:"));
+        form.add(txtUsername);
+        form.add(new JLabel("Rol de Acceso *:"));
+        form.add(cmbRole);
+        form.add(new JLabel("Nueva Contraseña:"));
+        form.add(txtPass);
+
+        JLabel lblPassHint = new JLabel("💡 Deja la contraseña vacía si deseas conservar la actual.");
+        lblPassHint.setFont(new Font("Segoe UI", Font.ITALIC, 11));
+        lblPassHint.setForeground(MUTED);
+
+        JPanel centerPanel = new JPanel();
+        centerPanel.setOpaque(false);
+        centerPanel.setLayout(new BoxLayout(centerPanel, BoxLayout.Y_AXIS));
+        centerPanel.add(form);
+        centerPanel.add(Box.createVerticalStrut(8));
+        centerPanel.add(lblPassHint);
+
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        buttons.setOpaque(false);
+        JButton btnCancel = new JButton("Cancelar");
+        btnCancel.addActionListener(e -> dialog.dispose());
+
+        JButton btnSave = createPrimaryButton("💾 Guardar Cambios", 34);
+        btnSave.addActionListener(e -> {
+            String uName = txtUsername.getText().trim();
+            String fName = txtFullName.getText().trim();
+            String phone = txtPhone.getText().trim();
+            Role role = (Role) cmbRole.getSelectedItem();
+            String newPass = new String(txtPass.getPassword()).trim();
+
+            if (uName.isEmpty()) {
+                JOptionPane.showMessageDialog(dialog, "El nombre de usuario no puede estar vacío.", "Validación", JOptionPane.WARNING_MESSAGE);
                 return;
             }
-            Long uId = (Long) usersTableModel.getValueAt(row, 0);
-            int confirm = JOptionPane.showConfirmDialog(this, "¿Deseas desactivar el acceso para este usuario?", "Confirmar", JOptionPane.YES_NO_OPTION);
-            if (confirm == JOptionPane.YES_OPTION) {
-                authController.deleteUser(uId);
-                loadUsersDataAsync();
+
+            try {
+                boolean ok = authController.updateUser(user.getId(), uName, fName, phone, role, newPass.isEmpty() ? null : newPass);
+                if (ok) {
+                    JOptionPane.showMessageDialog(dialog, "Usuario actualizado correctamente.", "Éxito", JOptionPane.INFORMATION_MESSAGE);
+                    dialog.dispose();
+                    loadUsersDataAsync();
+                } else {
+                    JOptionPane.showMessageDialog(dialog, "No se pudo actualizar el usuario.", "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(dialog, "Error al actualizar: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
             }
         });
 
-        JPanel bottomBar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 8));
-        bottomBar.setOpaque(false);
-        bottomBar.add(btnDeactivateUser);
-        centerPanel.add(bottomBar, BorderLayout.SOUTH);
+        buttons.add(btnCancel);
+        buttons.add(btnSave);
 
-        panel.add(centerPanel, BorderLayout.CENTER);
-        return panel;
+        content.add(title, BorderLayout.NORTH);
+        content.add(centerPanel, BorderLayout.CENTER);
+        content.add(buttons, BorderLayout.SOUTH);
+
+        dialog.setContentPane(content);
+        dialog.setVisible(true);
     }
 
     private void loadCatalogsDataAsync() {
@@ -2089,12 +2538,15 @@ public class MainFrame extends JFrame {
             protected void done() {
                 try {
                     List<AppUser> users = get();
+                    allUsersList = users != null ? users : new ArrayList<AppUser>();
                     if (usersTableModel != null) {
                         usersTableModel.setRowCount(0);
-                        for (AppUser u : users) {
+                        for (AppUser u : allUsersList) {
                             usersTableModel.addRow(new Object[]{
                                     u.getId(),
                                     u.getUsername(),
+                                    u.getFullName() != null && !u.getFullName().trim().isEmpty() ? u.getFullName() : "--",
+                                    u.getPhone() != null && !u.getPhone().trim().isEmpty() ? u.getPhone() : "--",
                                     u.getRole() != null ? u.getRole().name() : "-",
                                     u.isActive() ? "Activo" : "Inactivo"
                             });
@@ -2349,67 +2801,173 @@ public class MainFrame extends JFrame {
     }
 
     private void loadHistoryDataAsync() {
+        String filter = cmbHistoryDateFilter != null ? (String) cmbHistoryDateFilter.getSelectedItem() : "📅 Todos los Registros";
+        if (filter == null) filter = "📅 Todos los Registros";
+        final String finalFilter = filter;
+
         new SwingWorker<List<WashTableRowDTO>, Void>() {
             @Override
             protected List<WashTableRowDTO> doInBackground() {
-                return washController.getAllWashesTable();
+                LocalDate today = LocalDate.now();
+                if (finalFilter.contains("Hoy")) {
+                    return washController.getWashesTableToday();
+                } else if (finalFilter.contains("Ayer")) {
+                    LocalDate yesterday = today.minusDays(1);
+                    return washController.getWashesTableByRange(yesterday, yesterday);
+                } else if (finalFilter.contains("Esta Semana")) {
+                    LocalDate startOfWeek = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+                    return washController.getWashesTableByRange(startOfWeek, today);
+                } else if (finalFilter.contains("Este Mes")) {
+                    LocalDate startOfMonth = today.withDayOfMonth(1);
+                    return washController.getWashesTableByRange(startOfMonth, today);
+                } else {
+                    return washController.getAllWashesTable();
+                }
             }
             @Override
             protected void done() {
                 try {
-                    List<WashTableRowDTO> list = get();
-                    if (allWashesModel == null) return;
-                    allWashesModel.setRowCount(0);
-                    for (WashTableRowDTO r : list) {
-                        allWashesModel.addRow(new Object[]{
-                                r.getWashDate(),
-                                r.getWashTime(),
-                                r.getPlate(),
-                                r.getVehicleTypeLabel(),
-                                r.getVehicleModel(),
-                                r.getWorkerName(),
-                                CURRENCY_FMT.format(r.getPrice()),
-                                CURRENCY_FMT.format(r.getWorkerPayment()),
-                                "+" + CURRENCY_FMT.format(r.getProfit()),
-                                r.getPayoutStatus()
-                        });
-                    }
+                    currentLoadedHistory = get();
+                    filterHistoryTableLocal();
                 } catch (Exception ignored) {}
             }
         }.execute();
     }
 
+    private void filterHistoryTableLocal() {
+        if (allWashesModel == null) return;
+        allWashesModel.setRowCount(0);
+
+        String query = txtSearchHistory != null ? txtSearchHistory.getText().trim().toLowerCase() : "";
+        int count = 0;
+        BigDecimal total = BigDecimal.ZERO;
+
+        for (WashTableRowDTO r : currentLoadedHistory) {
+            String placa = r.getPlate() != null ? r.getPlate() : "";
+            String cliente = r.getClientName() != null ? r.getClientName() : "";
+            String telefono = r.getClientPhone() != null ? r.getClientPhone() : "";
+            String operador = r.getWorkerName() != null ? r.getWorkerName() : "";
+            String tipoLav = r.getWashTypeName() != null ? r.getWashTypeName() : "";
+
+            if (!query.isEmpty()) {
+                boolean matches = placa.toLowerCase().contains(query)
+                        || cliente.toLowerCase().contains(query)
+                        || telefono.toLowerCase().contains(query)
+                        || operador.toLowerCase().contains(query)
+                        || tipoLav.toLowerCase().contains(query);
+                if (!matches) continue;
+            }
+
+            count++;
+            if (r.getPrice() != null) total = total.add(r.getPrice());
+
+            allWashesModel.addRow(new Object[]{
+                    count,
+                    r.getWashDate(),
+                    r.getWashTime(),
+                    cliente.isEmpty() ? "--" : cliente,
+                    telefono.isEmpty() ? "--" : telefono,
+                    placa,
+                    r.getVehicleTypeLabel(),
+                    tipoLav.isEmpty() ? "--" : tipoLav,
+                    operador,
+                    CURRENCY_FMT.format(r.getPrice()),
+                    r.getPayoutStatus()
+            });
+        }
+
+        if (lblHistoryCount != null) {
+            lblHistoryCount.setText(count + " lavado" + (count == 1 ? "" : "s"));
+        }
+        if (lblHistoryTotal != null) {
+            lblHistoryTotal.setText("Total: " + CURRENCY_FMT.format(total));
+        }
+    }
+
     private void loadPayoutsDataAsync() {
+        String filter = cmbPayoutDateFilterAdmin != null ? (String) cmbPayoutDateFilterAdmin.getSelectedItem() : "📅 Todos los Registros";
+        if (filter == null) filter = "📅 Todos los Registros";
+        final String finalFilter = filter;
+
         new SwingWorker<List<WorkerPayout>, Void>() {
             @Override
             protected List<WorkerPayout> doInBackground() {
-                return payoutController.getAllPayouts();
+                LocalDate today = LocalDate.now();
+                if (finalFilter.contains("Hoy")) {
+                    return payoutController.getPayoutsToday();
+                } else if (finalFilter.contains("Ayer")) {
+                    LocalDate yesterday = today.minusDays(1);
+                    return payoutController.getPayoutsByDateRange(yesterday, yesterday);
+                } else if (finalFilter.contains("Esta Semana")) {
+                    LocalDate startOfWeek = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+                    return payoutController.getPayoutsByDateRange(startOfWeek, today);
+                } else if (finalFilter.contains("Este Mes")) {
+                    LocalDate startOfMonth = today.withDayOfMonth(1);
+                    return payoutController.getPayoutsByDateRange(startOfMonth, today);
+                } else {
+                    return payoutController.getAllPayouts();
+                }
             }
             @Override
             protected void done() {
                 try {
-                    List<WorkerPayout> list = get();
-                    if (payoutsTableModel == null) return;
-                    payoutsTableModel.setRowCount(0);
-                    for (WorkerPayout p : list) {
-                        Worker w = container.getWorkerController().getActiveWorkers().stream()
-                                .filter(wk -> wk.getId().equals(p.getWorkerId()))
-                                .findFirst().orElse(null);
-                        String workerName = (w != null) ? w.getName() : "ID #" + p.getWorkerId();
-                        payoutsTableModel.addRow(new Object[]{
-                                "#" + p.getId(),
-                                p.getPaymentDate(),
-                                p.getPaymentTime(),
-                                workerName,
-                                CURRENCY_FMT.format(p.getAmount()),
-                                p.getPaymentMethod().getLabel(),
-                                p.getStatus().getLabel(),
-                                p.getNotes() != null ? p.getNotes() : "—"
-                        });
-                    }
+                    currentLoadedPayoutsAdmin = get();
+                    filterPayoutsTableLocal();
                 } catch (Exception ignored) {}
             }
         }.execute();
+    }
+
+    private void filterPayoutsTableLocal() {
+        if (payoutsTableModel == null) return;
+        payoutsTableModel.setRowCount(0);
+
+        String query = txtSearchPayoutsAdmin != null ? txtSearchPayoutsAdmin.getText().trim().toLowerCase() : "";
+        int count = 0;
+        BigDecimal total = BigDecimal.ZERO;
+
+        List<Worker> activeWorkers = container.getWorkerController().getActiveWorkers();
+        Map<Long, String> workerNames = new HashMap<Long, String>();
+        for (Worker wk : activeWorkers) {
+            workerNames.put(wk.getId(), wk.getName());
+        }
+
+        for (WorkerPayout p : currentLoadedPayoutsAdmin) {
+            String workerName = workerNames.containsKey(p.getWorkerId())
+                    ? workerNames.get(p.getWorkerId())
+                    : "ID #" + p.getWorkerId();
+            String metodo = p.getPaymentMethod() != null ? p.getPaymentMethod().getLabel() : "Efectivo";
+            String notas = p.getNotes() != null ? p.getNotes() : "";
+
+            if (!query.isEmpty()) {
+                boolean matches = workerName.toLowerCase().contains(query)
+                        || metodo.toLowerCase().contains(query)
+                        || notas.toLowerCase().contains(query);
+                if (!matches) continue;
+            }
+
+            count++;
+            if (p.getAmount() != null) total = total.add(p.getAmount());
+
+            payoutsTableModel.addRow(new Object[]{
+                    count,
+                    "#" + p.getId(),
+                    p.getPaymentDate(),
+                    p.getPaymentTime(),
+                    workerName,
+                    CURRENCY_FMT.format(p.getAmount()),
+                    metodo,
+                    p.getStatus() != null ? p.getStatus().getLabel() : "Completado",
+                    notas.isEmpty() ? "—" : notas
+            });
+        }
+
+        if (lblCountPayoutsAdmin != null) {
+            lblCountPayoutsAdmin.setText(count + " pago" + (count == 1 ? "" : "s"));
+        }
+        if (lblTotalPayoutsAdmin != null) {
+            lblTotalPayoutsAdmin.setText("Total: " + CURRENCY_FMT.format(total));
+        }
     }
 
     private void loadReportsDataAsync() {

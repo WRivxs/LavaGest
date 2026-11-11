@@ -3,6 +3,8 @@ package com.lavagest.model;
 public class AppUser {
     private Long id;
     private String username;
+    private String fullName;
+    private String phone;
     private String passwordHash; // SHA-256 hex
     private Role role;
     private Long workerId; // FK a workers (nullable, solo para ENCARGADO)
@@ -12,8 +14,15 @@ public class AppUser {
 
     public AppUser(Long id, String username, String passwordHash, Role role,
                    Long workerId, boolean active) {
+        this(id, username, null, null, passwordHash, role, workerId, active);
+    }
+
+    public AppUser(Long id, String username, String fullName, String phone,
+                   String passwordHash, Role role, Long workerId, boolean active) {
         this.id = id;
         this.username = username;
+        this.fullName = fullName;
+        this.phone = phone;
         this.passwordHash = passwordHash;
         this.role = role;
         this.workerId = workerId;
@@ -25,6 +34,12 @@ public class AppUser {
 
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }
+
+    public String getFullName() { return fullName; }
+    public void setFullName(String fullName) { this.fullName = fullName; }
+
+    public String getPhone() { return phone; }
+    public void setPhone(String phone) { this.phone = phone; }
 
     public String getPasswordHash() { return passwordHash; }
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
