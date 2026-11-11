@@ -35,8 +35,8 @@ public class JdbcWashRepository implements WashRepository {
     @Override
     public Wash save(Wash wash) {
         String sql = "INSERT INTO washes (plate, vehicle_type, vehicle_model, worker_id, price, commission_pct, " +
-                "worker_payment, wash_date, wash_time, payout_status, notes, wash_type_id, client_name, created_by_user_id) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id";
+                "worker_payment, wash_date, wash_time, payout_status, notes, wash_type_id, client_name, client_phone, created_by_user_id) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id";
         try (Connection conn = dbConfig.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, wash.getPlate());
@@ -56,10 +56,11 @@ public class JdbcWashRepository implements WashRepository {
                 ps.setNull(12, Types.BIGINT);
             }
             ps.setString(13, wash.getClientName());
+            ps.setString(14, wash.getClientPhone());
             if (wash.getCreatedByUserId() != null) {
-                ps.setLong(14, wash.getCreatedByUserId());
+                ps.setLong(15, wash.getCreatedByUserId());
             } else {
-                ps.setNull(14, Types.BIGINT);
+                ps.setNull(15, Types.BIGINT);
             }
 
             try (ResultSet rs = ps.executeQuery()) {
@@ -298,6 +299,9 @@ public class JdbcWashRepository implements WashRepository {
         } catch (SQLException ignored) {}
         try {
             wash.setClientName(rs.getString("client_name"));
+        } catch (SQLException ignored) {}
+        try {
+            wash.setClientPhone(rs.getString("client_phone"));
         } catch (SQLException ignored) {}
         long cBy = rs.getLong("created_by_user_id");
         if (!rs.wasNull()) {

@@ -65,6 +65,7 @@ public class WashController {
                 request.getWashTypeId(),
                 request.getWashTypeName(),
                 request.getClientName(),
+                request.getClientPhone(),
                 request.getCreatedByUserId()
         );
 
@@ -74,6 +75,14 @@ public class WashController {
     /** Retorna lavados del día como lista Wash (para EncargadoFrame) */
     public List<Wash> getWashesByDate(java.time.LocalDate date) {
         return lavagestService.getWashesByDate(date);
+    }
+
+    public List<Wash> getWashesByDateRange(LocalDate from, LocalDate to) {
+        return lavagestService.getWashesByDateRange(from, to);
+    }
+
+    public List<Wash> getAllWashes() {
+        return lavagestService.getAllWashes();
     }
 
     public List<WashTableRowDTO> getWashesTableToday() {
@@ -126,6 +135,9 @@ public class WashController {
         row.setPlate(wash.getPlate());
         row.setVehicleModel(wash.getVehicleModel() != null ? wash.getVehicleModel() : "");
         row.setVehicleTypeLabel(wash.getVehicleType() != null ? wash.getVehicleType().getLabel() : "");
+        row.setWashTypeName(wash.getWashTypeName() != null ? wash.getWashTypeName() : "--");
+        row.setClientName(wash.getClientName() != null ? wash.getClientName() : "--");
+        row.setClientPhone(wash.getClientPhone() != null ? wash.getClientPhone() : "");
         row.setPayoutStatus(wash.getPayoutStatus() != null ? wash.getPayoutStatus().getLabel() : "Pendiente");
 
         if (worker != null) {

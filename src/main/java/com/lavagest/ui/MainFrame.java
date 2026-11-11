@@ -748,8 +748,8 @@ public class MainFrame extends JFrame {
         form.setBackground(SURFACE);
         form.setBorder(BorderFactory.createEmptyBorder(18, 22, 18, 22));
 
-        // 1. Cliente y Placa
-        JPanel clientPlateRow = new JPanel(new GridLayout(1, 2, 12, 0));
+        // 1. Cliente, Teléfono y Placa
+        JPanel clientPlateRow = new JPanel(new GridLayout(1, 3, 10, 0));
         clientPlateRow.setOpaque(false);
         clientPlateRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 46));
 
@@ -761,10 +761,23 @@ public class MainFrame extends JFrame {
         clientLabel.setForeground(MUTED_LIGHT);
         JTextField txtClient = new JTextField();
         txtClient.setFont(new Font("SansSerif", Font.PLAIN, 12));
-        txtClient.putClientProperty("JTextField.placeholderText", "Nombre del cliente");
+        txtClient.putClientProperty("JTextField.placeholderText", "Nombre cliente");
         clientCol.add(clientLabel);
         clientCol.add(Box.createVerticalStrut(2));
         clientCol.add(txtClient);
+
+        JPanel phoneCol = new JPanel();
+        phoneCol.setOpaque(false);
+        phoneCol.setLayout(new BoxLayout(phoneCol, BoxLayout.Y_AXIS));
+        JLabel phoneLabel = new JLabel("TELÉFONO");
+        phoneLabel.setFont(new Font("SansSerif", Font.BOLD, 10));
+        phoneLabel.setForeground(MUTED_LIGHT);
+        JTextField txtPhone = new JTextField();
+        txtPhone.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        txtPhone.putClientProperty("JTextField.placeholderText", "Opcional");
+        phoneCol.add(phoneLabel);
+        phoneCol.add(Box.createVerticalStrut(2));
+        phoneCol.add(txtPhone);
 
         JPanel plateCol = new JPanel();
         plateCol.setOpaque(false);
@@ -786,6 +799,7 @@ public class MainFrame extends JFrame {
         plateCol.add(modalPlate);
 
         clientPlateRow.add(clientCol);
+        clientPlateRow.add(phoneCol);
         clientPlateRow.add(plateCol);
         form.add(clientPlateRow);
         form.add(Box.createVerticalStrut(12));
@@ -964,6 +978,7 @@ public class MainFrame extends JFrame {
             CreateWashRequest request = new CreateWashRequest();
             request.setPlate(plate);
             request.setClientName(client.isEmpty() ? plate : client);
+            request.setClientPhone(txtPhone.getText().trim().isEmpty() ? null : txtPhone.getText().trim());
             request.setVehicleModel(selV.getName());
             request.setVehicleTypeCatalogId(selV.getId());
             request.setVehicleTypeName(selV.getName());

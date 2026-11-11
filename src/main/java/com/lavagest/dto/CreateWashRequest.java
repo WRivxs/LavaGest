@@ -16,6 +16,7 @@ public class CreateWashRequest {
     private Long washTypeId;                // FK a wash_types (nuevo)
     private String washTypeName;            // nombre del tipo de lavado (nuevo)
     private String clientName;              // nombre del cliente (nuevo)
+    private String clientPhone;             // teléfono del cliente (opcional)
     private Long workerId;                  // ID del trabajador asignado
     private BigDecimal price;               // Precio cobrado
     private BigDecimal commissionPct;       // % comisión (default 40.00)
@@ -60,6 +61,9 @@ public class CreateWashRequest {
 
     public String getClientName() { return clientName; }
     public void setClientName(String clientName) { this.clientName = clientName; }
+
+    public String getClientPhone() { return clientPhone; }
+    public void setClientPhone(String clientPhone) { this.clientPhone = clientPhone; }
 
     public Long getWorkerId() { return workerId; }
     public void setWorkerId(Long workerId) { this.workerId = workerId; }

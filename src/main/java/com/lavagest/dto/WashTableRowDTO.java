@@ -13,6 +13,9 @@ public class WashTableRowDTO {
     private String plate;
     private String vehicleModel;
     private String vehicleTypeLabel; // "Carro" o "Moto"
+    private String washTypeName;     // "Completo", "Lavado general", etc.
+    private String clientName;       // Nombre del cliente
+    private String clientPhone;      // Teléfono del cliente
     private String workerName;
     private String workerBay;
     private String payoutStatus;     // "Pendiente" o "Liquidado"
@@ -43,6 +46,15 @@ public class WashTableRowDTO {
 
     public String getVehicleTypeLabel() { return vehicleTypeLabel; }
     public void setVehicleTypeLabel(String vehicleTypeLabel) { this.vehicleTypeLabel = vehicleTypeLabel; }
+
+    public String getWashTypeName() { return washTypeName; }
+    public void setWashTypeName(String washTypeName) { this.washTypeName = washTypeName; }
+
+    public String getClientName() { return clientName; }
+    public void setClientName(String clientName) { this.clientName = clientName; }
+
+    public String getClientPhone() { return clientPhone; }
+    public void setClientPhone(String clientPhone) { this.clientPhone = clientPhone; }
 
     public String getWorkerName() { return workerName; }
     public void setWorkerName(String workerName) { this.workerName = workerName; }

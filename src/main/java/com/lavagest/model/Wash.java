@@ -22,6 +22,7 @@ public class Wash {
     private Long washTypeId;        // FK a wash_types
     private String washTypeName;    // nombre denormalizado para display
     private String clientName;      // nombre del cliente
+    private String clientPhone;     // teléfono del cliente (opcional)
     private Long createdByUserId;   // FK a users (quien registró el lavado)
 
     public Wash() {
@@ -128,6 +129,9 @@ public class Wash {
 
     public String getClientName() { return clientName; }
     public void setClientName(String clientName) { this.clientName = clientName; }
+
+    public String getClientPhone() { return clientPhone; }
+    public void setClientPhone(String clientPhone) { this.clientPhone = clientPhone; }
 
     public Long getCreatedByUserId() { return createdByUserId; }
     public void setCreatedByUserId(Long createdByUserId) { this.createdByUserId = createdByUserId; }
